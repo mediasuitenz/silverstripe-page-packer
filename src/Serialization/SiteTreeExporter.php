@@ -35,7 +35,7 @@ class SiteTreeExporter
      * referenced by an import file — 'fail' (abort with a clear error) or 'best_effort' (skip
      * what doesn't match and warn). Shared by both SiteTreeExportJob (which reads it to decide
      * how strictly to treat unsupported relation shapes during export, e.g.
-     * many_many_extraFields) and CMSMainImportToolExtension (which reads it to configure
+     * many_many_extraFields) and CMSMainAddFormImportExtension (which reads it to configure
      * SiteTreeImportJob) — set on this class, not duplicated, so there's one source of truth.
      *
      * @var string
@@ -169,10 +169,6 @@ class SiteTreeExporter
         return $localId;
     }
 
-    /**
-     * Reads a has_one relation's raw target without fetching the related object, resolving the
-     * polymorphic companion {Relation}Class column where relevant. Returns null if unset.
-     */
     /**
      * Uses getComponent() rather than hand-reading the raw {Relation}ID/{Relation}Class columns:
      * for a plain (non-polymorphic) has_one declared against an abstract/base class (e.g.

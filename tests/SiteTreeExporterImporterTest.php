@@ -36,7 +36,7 @@ class SiteTreeExporterImporterTest extends SapphireTest
     /**
      * Mirrors the production flow exactly: a bare SiteTree stub is written first (so it has a
      * real ID), then reclassed via newClassInstance() to the manifest's target class, then
-     * handed to the importer — see SiteTreeImportJob::doImport() and CMSMainImportToolExtension.
+     * handed to the importer — see SiteTreeImportJob::doImport() and CMSMainAddFormImportExtension.
      */
     private function importAsNewPage(array $manifest): SiteTree
     {
@@ -74,7 +74,7 @@ class SiteTreeExporterImporterTest extends SapphireTest
     {
         // Uses the global \Page class rather than bare SiteTree: this dev site's own
         // app/_config/mysite.yml applies ElementalPageExtension to Page specifically (not
-        // SiteTree — see CMSMainImportToolExtension's stub-class doc comment for why that
+        // SiteTree — see CMSMainAddFormImportExtension's stub-class doc comment for why that
         // distinction matters). Applying the extension dynamically at runtime instead would be
         // too late for SapphireTest's temp test database, whose schema is built once at boot
         // from the statically-configured extension list.

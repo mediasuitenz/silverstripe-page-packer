@@ -9,7 +9,15 @@ SilverStripe\CMS\Model\SiteTree:
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
     SiteTreeImportExportExportActionExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainExportActionExtension
-    SiteTreeImportExportImportToolExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainImportToolExtension
+    # updateDoAdd() half of the Add-New-Page import integration — see
+    # CMSMainAddFormImportExtension's class doc for why this same extension class is also
+    # attached to CMSMainAddForm below.
+    SiteTreeImportExportAddFormImportExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainAddFormImportExtension
+
+SilverStripe\CMS\Forms\CMSMainAddForm:
+  extensions:
+    # updateFields() half — adds the upload field to the native Add-New-Page form.
+    SiteTreeImportExportAddFormImportExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainAddFormImportExtension
 
 # Default mismatch handling — 'fail' aborts an export/import with a clear error the moment an
 # unsupported relation shape or a class/field missing on the target site is encountered;
