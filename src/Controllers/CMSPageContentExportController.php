@@ -78,6 +78,13 @@ class CMSPageContentExportController extends CMSMain
             $fields = FieldList::create();
         }
 
-        return parent::getEditForm($id, $fields);
+        $form = parent::getEditForm($id, $fields);
+        // Same mechanism CMSPageHistoryViewerController uses to disable the preview panel on the
+        // History tab: the CMS's JS keys off this class on the edit form to decide whether to
+        // render the split preview pane at all, so removing it (rather than e.g. trying to hide
+        // it with CSS) is what actually reclaims the full-width layout.
+        $form->removeExtraClass('cms-previewable');
+
+        return $form;
     }
 }
