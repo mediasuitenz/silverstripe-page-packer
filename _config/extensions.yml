@@ -1,5 +1,21 @@
 ---
 Name: sitetree-import-export-extensions
 ---
-# DataExtension / CMSMainExtension registrations will go here once the
-# import/export feature design is settled.
+SilverStripe\CMS\Model\SiteTree:
+  extensions:
+    SiteTreeImportExportLockExtension: MadeCurious\SiteTreeImportExport\Extensions\SiteTreeLockExtension
+    SiteTreeImportExportExportExtension: MadeCurious\SiteTreeImportExport\Extensions\SiteTreeExportExtension
+
+SilverStripe\CMS\Controllers\CMSMain:
+  extensions:
+    SiteTreeImportExportExportActionExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainExportActionExtension
+    SiteTreeImportExportImportToolExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainImportToolExtension
+
+# Default mismatch handling — 'fail' aborts an export/import with a clear error the moment an
+# unsupported relation shape or a class/field missing on the target site is encountered;
+# 'best_effort' skips what doesn't match and records a warning instead. Override in project
+# YAML, e.g.:
+#   MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter:
+#     mismatch_behaviour: best_effort
+MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter:
+  mismatch_behaviour: fail
