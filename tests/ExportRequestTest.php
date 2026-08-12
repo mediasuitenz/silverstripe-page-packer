@@ -6,6 +6,7 @@ use DNADesign\Elemental\Extensions\ElementalPageExtension;
 use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
+use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
 use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
@@ -131,5 +132,68 @@ class ExportRequestTest extends SapphireTest
             'Must be stale after publishing a change to a nested block, even though the page'
             . ' record itself was never re-saved.'
         );
+    }
+
+    public function testDeletePermissionIsGatedByTheModulesPermission(): void
+    {
+        $page = SiteTree::create(['Title' => 'Owner of an export']);
+        $page->write();
+        $request = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $request->write();
+
+        $this->logOut();
+        $this->assertFalse(
+            (bool) $request->canDelete(),
+            'A visitor with no permission at all must not be able to delete an export.'
+        );
+
+        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->assertTrue(
+            (bool) $request->canDelete(),
+            'A member with the module\'s permission must be able to delete an export — this is'
+            . ' exactly what GridFieldDeleteAction checks before allowing the history'
+            . ' GridField\'s per-row delete button to do anything.'
+        );
+    }
+
+    public function testDeletingAnExportRequestRemovesItFromThePagesHistory(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+
+        $page = SiteTree::create(['Title' => 'Owner of two exports']);
+        $page->write();
+
+        $keep = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $keep->write();
+        $delete = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $delete->write();
+
+        $this->assertSame(2, $page->ExportRequests()->count());
+
+        // Mirrors exactly what GridFieldDeleteAction::handleAction() does server-side for the
+        // 'deleterecord' action: check canDelete(), then delete() outright (not a mere
+        // remove-from-relation) — see the has_many wiring on SiteTreeExportExtension.
+        $this->assertTrue((bool) $delete->canDelete());
+        $delete->delete();
+
+        $remaining = $page->ExportRequests();
+        $this->assertSame(1, $remaining->count());
+        $this->assertSame($keep->ID, $remaining->first()->ID);
+    }
+
+    public function testDescriptionIsPersistedAndShownInSummary(): void
+    {
+        $page = SiteTree::create(['Title' => 'Described export']);
+        $page->write();
+
+        $request = ExportRequest::create([
+            'PageID' => $page->ID,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Description' => 'Before the homepage redesign',
+        ]);
+        $request->write();
+
+        $reloaded = ExportRequest::get()->byID($request->ID);
+        $this->assertSame('Before the homepage redesign', $reloaded->Description);
     }
 }

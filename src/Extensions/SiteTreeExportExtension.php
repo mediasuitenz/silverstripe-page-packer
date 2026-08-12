@@ -5,52 +5,55 @@ namespace MadeCurious\SiteTreeImportExport\Extensions;
 use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
 use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use SilverStripe\Control\Controller;
 use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
-use SilverStripe\Forms\FormAction;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Security\Permission;
+use SilverStripe\View\Requirements;
 
 /**
- * Adds a dedicated "Content Export" tab to a page's edit screen: two export buttons
- * (with/without assets — see updateCMSActions()'s doc comment for why this is two actions and
- * not one action plus a checkbox field) and a history list of this page's past
- * {@see ExportRequest}s (both real exports and the file originally uploaded to import this
- * page, if it was created that way) — newest first, each with a stale badge and a download link
- * once complete. In its own tab (not folded into Settings) since there's nothing left to
- * configure there now that the include-assets choice is part of which button is clicked.
+ * Adds the "Export" button (which opens a modal — include-assets checkbox + a free-text
+ * description, see updateCMSActions()'s doc comment for how the modal itself works) to a page's
+ * edit-screen action bar. The export history GridField this extension used to also render (as a
+ * sub-tab nested inside the Content screen) now lives on its own top-level "Content Export" tab
+ * instead — see {@see \MadeCurious\SiteTreeImportExport\Controllers\CMSPageContentExportController}
+ * — so it's a peer of Content/Settings/History, not buried under Content.
  */
 class SiteTreeExportExtension extends Extension
 {
-    public function updateCMSFields(FieldList $fields): void
-    {
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
-            return;
-        }
-
-        if (!$this->owner->exists()) {
-            // Nothing to export until the page itself has been saved at least once.
-            return;
-        }
-
-        $fields->findOrMakeTab('Root.ContentExport', _t(self::class . '.TAB_TITLE', 'Content Export'));
-
-        $fields->addFieldToTab('Root.ContentExport', LiteralField::create(
-            'SiteTreeExportHistory',
-            $this->renderHistory()
-        ));
-    }
+    /**
+     * A real has_many (not just a filtered DataList) so CMSPageContentExportController's
+     * GridField is backed by a genuine RelationList — GridFieldDeleteAction works either way,
+     * but this is the more idiomatic wiring. IMPORTANT: this class is registered in
+     * RelationSchema's excluded_relation_classes — without that exclusion, the exporter would
+     * treat this as ordinary owned content and try to walk into it (recursing into
+     * ExportRequest's own Member/ResultFile relations), which is exactly backwards: this is
+     * operational metadata ABOUT the page, never itself page content to export.
+     */
+    private static $has_many = [
+        'ExportRequests' => ExportRequest::class,
+    ];
 
     /**
-     * Two distinct actions — "Export" and "Export with Assets" — rather than one "Export" action
-     * plus an include-assets checkbox field: a checkbox on this same edit form would be a field
-     * on the SiteTree record itself, tied to the record's own save/publish lifecycle (the CMS
-     * would treat toggling it as an unsaved change to the page, and its value would only take
-     * effect once actually saved) even though it has nothing to do with the page's own content.
-     * Making the choice part of which button is clicked keeps it atomic with the export action
-     * itself, with nothing to save first.
+     * Adds a plain (non-FormAction) trigger button carrying the whole modal — form and all — as
+     * a `data-modal` HTML string, exactly mirroring
+     * `SilverStripe\Forms\GridField\GridFieldImportButton`'s own CSV-import dialog: the JS (see
+     * requireModalScript()) appends that HTML to `<body>` on click, so the modal's own `<form>`
+     * is never nested inside the CMS's own edit-form `<form>` tag — sidestepping both the
+     * HTML-invalid nested-form problem and the record-dirty-tracking concern a field added
+     * directly to the page's edit form would raise (confirmed necessary: the CMS's unsaved-
+     * changes tracking watches for ANY input change within `.cms-edit-form`, not just changes to
+     * fields backed by a real db column, so nesting fields inside the SAME form would still
+     * flicker a "you have unsaved changes" warning even for a non-persisted field).
      *
-     * Hides both actions while an export for this page is already in flight, so an editor can't
+     * A plain LiteralField-rendered `<button type="button">`, not a FormAction, deliberately:
+     * every FormAction unconditionally renders with the CSS class `action`
+     * (`FormAction::Type()`), and the CMS's own shipped JS binds a submit-hijacking handler to
+     * `.cms-edit-form .btn-toolbar button.action` — any FormAction added here would have its
+     * click intercepted and submit the page's main edit form, not open a modal.
+     *
+     * Hides the button while an export for this page is already in flight, so an editor can't
      * queue a second concurrent export of the same page.
      */
     public function updateCMSActions(FieldList $actions): void
@@ -70,55 +73,102 @@ class SiteTreeExportExtension extends Extension
             return;
         }
 
-        $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
-        $exportAction = FormAction::create(
-            'doExport',
-            _t(self::class . '.EXPORT_BUTTON', 'Export')
-        )->setUseButtonTag(true);
-        $exportWithAssetsAction = FormAction::create(
-            'doExportWithAssets',
-            _t(self::class . '.EXPORT_WITH_ASSETS_BUTTON', 'Export with Assets')
-        )->setUseButtonTag(true);
+        $controller = Controller::curr();
 
-        if ($moreOptions) {
-            $moreOptions->push($exportAction);
-            $moreOptions->push($exportWithAssetsAction);
-        } else {
-            $actions->push($exportAction);
-            $actions->push($exportWithAssetsAction);
+        if (!$controller || !$controller->hasMethod('ExportModalForm')) {
+            return;
         }
+
+        $this->requireModalScript();
+
+        $modalId = 'SiteTreeExportModal';
+        $form = $controller->ExportModalForm();
+        $form->Fields()->dataFieldByName('PageID')->setValue($this->owner->ID);
+
+        $modalHtml = '<div id="' . $modalId . '" class="modal fade" tabindex="-1" role="dialog">'
+            . '<div class="modal-dialog" role="document"><div class="modal-content">'
+            . '<div class="modal-header"><h2 class="modal-title">'
+            . htmlspecialchars((string) _t(self::class . '.MODAL_TITLE', 'Export page'))
+            . '</h2><button type="button" class="btn btn-close btn--icon-xl btn--no-text modal__close-button" '
+            . 'data-dismiss="modal" aria-label="Close" title="Close">'
+            . '<span class="btn__icon font-icon-cancel" aria-hidden="true"></span></button></div>'
+            . '<div class="modal-body">' . $form->forTemplate() . '</div>'
+            . '</div></div></div>';
+
+        $triggerHtml = '<button type="button" class="btn btn-secondary font-icon-share" '
+            . 'data-toggle="modal" data-target="#' . $modalId . '" '
+            . 'data-modal="' . htmlspecialchars($modalHtml, ENT_QUOTES) . '">'
+            . htmlspecialchars((string) _t(self::class . '.EXPORT_BUTTON', 'Export')) . '</button>';
+
+        $actions->push(LiteralField::create('SiteTreeExportModalTrigger', $triggerHtml));
     }
 
-    private function renderHistory(): string
+    /**
+     * Generalizes GridFieldImportButton's own shipped modal-open/close JS (entwine-scoped to
+     * `.grid-field .action.action_import:button`, so it never fires for this module's trigger)
+     * to work for any `[data-toggle="modal"][data-modal]` element, anywhere in the CMS —
+     * ~20 lines of plain JS via Requirements::customScript(), no build pipeline, idempotent
+     * (guarded both by a JS-side flag and by Requirements' own de-duplication-by-key).
+     */
+    private function requireModalScript(): void
     {
-        $requests = ExportRequest::get()->filter('PageID', $this->owner->ID);
+        Requirements::customScript(<<<'JS'
+(function () {
+    if (window.__siteTreeImportExportModalReady) { return; }
+    window.__siteTreeImportExportModalReady = true;
 
-        if (!$requests->count()) {
-            return '<p>' . _t(self::class . '.NO_EXPORTS', 'No exports yet.') . '</p>';
+    function closeModal(modalEl) {
+        if (!modalEl) { return; }
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.remove();
+        document.body.classList.remove('modal-open');
+        document.querySelectorAll('[data-sitetree-import-export-backdrop]').forEach(function (el) {
+            el.remove();
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        var trigger = e.target.closest('[data-toggle="modal"][data-modal]');
+
+        if (trigger) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var existing = document.querySelector(trigger.getAttribute('data-target'));
+            if (existing) { closeModal(existing); }
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = trigger.getAttribute('data-modal');
+            var modalEl = wrapper.firstElementChild;
+            document.body.appendChild(modalEl);
+
+            var backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.setAttribute('data-sitetree-import-export-backdrop', '1');
+            document.body.appendChild(backdrop);
+
+            modalEl.classList.add('show');
+            modalEl.style.display = 'block';
+            document.body.classList.add('modal-open');
+
+            return;
         }
 
-        $rows = '';
+        var dismiss = e.target.closest('[data-dismiss="modal"]');
 
-        foreach ($requests as $request) {
-            $stale = $request->isStale()
-                ? '<span class="badge badge-warning">' . _t(self::class . '.STALE', 'Stale') . '</span>'
-                : '';
-            $status = htmlspecialchars((string) $request->Status);
-            $origin = htmlspecialchars((string) $request->Origin);
-            $created = htmlspecialchars((string) $request->Created);
-            $link = $request->getDownloadLink();
-            $download = $link
-                ? '<a href="' . htmlspecialchars($link) . '">' . _t(self::class . '.DOWNLOAD', 'Download') . '</a>'
-                : '';
+        if (dismiss) {
+            e.preventDefault();
+            closeModal(dismiss.closest('.modal'));
 
-            $rows .= "<tr><td>{$created}</td><td>{$origin}</td><td>{$status} {$stale}</td><td>{$download}</td></tr>";
+            return;
         }
 
-        return '<table class="table"><thead><tr>'
-            . '<th>' . _t(self::class . '.COL_DATE', 'Date') . '</th>'
-            . '<th>' . _t(self::class . '.COL_ORIGIN', 'Origin') . '</th>'
-            . '<th>' . _t(self::class . '.COL_STATUS', 'Status') . '</th>'
-            . '<th></th>'
-            . '</tr></thead><tbody>' . $rows . '</tbody></table>';
+        if (e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('show')) {
+            closeModal(e.target);
+        }
+    });
+})();
+JS, 'sitetree-import-export-modal');
     }
 }

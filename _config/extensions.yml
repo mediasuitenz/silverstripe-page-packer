@@ -13,6 +13,10 @@ SilverStripe\CMS\Controllers\CMSMain:
     # CMSMainAddFormImportExtension's class doc for why this same extension class is also
     # attached to CMSMainAddForm below.
     SiteTreeImportExportAddFormImportExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainAddFormImportExtension
+    # Supplies the link/visibility the project's CMSMain_Content.ss override needs to render the
+    # "Content Export" tab — see docs/templates/CMSMain_Content.ss and
+    # CMSMainContentExportTabExtension's own class doc.
+    SiteTreeImportExportContentExportTabExtension: MadeCurious\SiteTreeImportExport\Extensions\CMSMainContentExportTabExtension
 
 SilverStripe\CMS\Forms\CMSMainAddForm:
   extensions:

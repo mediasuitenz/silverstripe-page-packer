@@ -6,6 +6,7 @@ use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
 use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\Control\Controller;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
@@ -49,6 +50,9 @@ class ExportRequest extends DataObject
         // a never-published page.
         'SourceContentTimestamp' => 'Varchar(32)',
         'StatusMessage' => 'Text',
+        // Free-text note an author can attach when triggering an export, e.g. "before redesign"
+        // — shown in the history list so past exports are distinguishable at a glance.
+        'Description' => 'Varchar(255)',
     ];
 
     private static $has_one = [
@@ -61,9 +65,22 @@ class ExportRequest extends DataObject
 
     private static $summary_fields = [
         'Created' => 'Date',
+        'Description' => 'Description',
         'Origin' => 'Origin',
         'Status' => 'Status',
         'Member.Title' => 'Requested by',
+        'StaleBadge' => 'Stale',
+        'DownloadLinkHtml' => 'File',
+    ];
+
+    /**
+     * StaleBadge/DownloadLinkHtml are rendered HTML fragments (a badge span, a download link),
+     * not plain text — cast so GridFieldDataColumns (used by
+     * SiteTreeExportExtension::updateCMSFields()'s history GridField) renders them unescaped.
+     */
+    private static $casting = [
+        'StaleBadge' => 'HTMLFragment',
+        'DownloadLinkHtml' => 'HTMLFragment',
     ];
 
     public function canView($member = null)
@@ -129,8 +146,33 @@ class ExportRequest extends DataObject
             return null;
         }
 
+        // A protected (non-public) file's getAbsoluteURL() grants temporary access via the
+        // CURRENT REQUEST'S session (FlysystemAssetStore::grant(), which reads
+        // Controller::curr()->getRequest()->getSession()) — there's no meaningful download link
+        // to produce outside a real HTTP request at all (dev/build, CLI tasks, tests), and
+        // calling it in that context throws rather than returning null, so guard explicitly.
+        if (!Controller::curr()) {
+            return null;
+        }
+
         $file = $this->ResultFile();
 
         return $file && $file->exists() ? $file->getAbsoluteURL() : null;
+    }
+
+    public function getStaleBadge(): string
+    {
+        return $this->isStale()
+            ? '<span class="badge badge-warning">' . _t(self::class . '.STALE', 'Stale') . '</span>'
+            : '';
+    }
+
+    public function getDownloadLinkHtml(): string
+    {
+        $link = $this->getDownloadLink();
+
+        return $link
+            ? '<a href="' . htmlspecialchars($link) . '">' . _t(self::class . '.DOWNLOAD', 'Download') . '</a>'
+            : '';
     }
 }

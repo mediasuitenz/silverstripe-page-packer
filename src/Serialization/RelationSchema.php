@@ -54,6 +54,14 @@ class RelationSchema
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedForm',
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedFormField',
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedFileField',
+        // This module's OWN export-history bookkeeping (SiteTreeExportExtension's
+        // ExportRequests has_many, added so its GridField could use a real RelationList) is
+        // operational metadata ABOUT a page, not page content — walking into it would recurse
+        // into Member/ResultFile and every past export's own captured state, which is neither
+        // meaningful to export nor safe (it references things like the requesting Member that
+        // are never part of the exported graph, tripping the same "reference outside the
+        // exported page" mismatch handling real content relations are meant to trigger).
+        'MadeCurious\\SiteTreeImportExport\\Model\\ExportRequest',
     ];
 
     /**

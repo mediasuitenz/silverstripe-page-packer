@@ -5,6 +5,7 @@ namespace MadeCurious\SiteTreeImportExport\Tests;
 use DNADesign\Elemental\Extensions\ElementalPageExtension;
 use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
+use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
 use MadeCurious\SiteTreeImportExport\Serialization\AssetBundler;
 use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter;
 use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeImporter;
@@ -103,6 +104,37 @@ class SiteTreeExporterImporterTest extends SapphireTest
         $this->assertSame('<p>Original content</p>', $imported->Content);
         $this->assertSame('A description', $imported->MetaDescription);
         $this->assertSame(SiteTree::class, $imported->ClassName);
+    }
+
+    /**
+     * Regression test: SiteTreeExportExtension declares a real has_many from SiteTree to
+     * ExportRequest (so its history GridField can use a genuine RelationList) — without an
+     * explicit exclusion, the exporter would treat that as ordinary owned content and try to
+     * walk into it, recursing into ExportRequest's own Member/ResultFile relations and failing
+     * (reported live: exporting a page that already had export history threw a mismatch error
+     * about a Member "outside the exported page").
+     */
+    public function testOwnExportHistoryIsNeverWalkedAsContent(): void
+    {
+        $page = SiteTree::create(['Title' => 'Page with prior exports']);
+        $page->write();
+
+        $previousExport = ExportRequest::create([
+            'PageID' => $page->ID,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Description' => 'An earlier export',
+        ]);
+        $previousExport->write();
+
+        $manifest = $this->export($page);
+
+        foreach ($manifest['nodes'] as $node) {
+            $this->assertNotSame(ExportRequest::class, $node['className']);
+        }
+
+        // The real point: this must not throw under the default fail-fast mismatch behaviour.
+        $imported = $this->importAsNewPage($manifest);
+        $this->assertSame('Page with prior exports', $imported->Title);
     }
 
     /**
