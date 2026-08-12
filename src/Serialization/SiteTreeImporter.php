@@ -53,10 +53,12 @@ class SiteTreeImporter
             throw new RuntimeException('Import file is missing its root node.');
         }
 
+        $assetsManifest = (array) ($manifest['assets'] ?? []);
+
         // Pass 1: create every node (scalar fields only) so every local ID maps to a real record
         // before any relation — including lateral/sibling ones — gets resolved.
         $this->created[$rootLocalId] = $root;
-        $this->applyScalarFields($root, $nodes[$rootLocalId]);
+        $this->applyScalarFields($root, $nodes[$rootLocalId], $assetsManifest);
         $root->write();
 
         foreach ($nodes as $localId => $node) {
@@ -69,7 +71,7 @@ class SiteTreeImporter
                 continue;
             }
 
-            $record = $this->createNode($node);
+            $record = $this->createNode($node, $assetsManifest);
 
             if ($record !== null) {
                 $this->created[$localId] = $record;
@@ -99,7 +101,7 @@ class SiteTreeImporter
         return $this->warnings;
     }
 
-    private function createNode(array $node): ?DataObject
+    private function createNode(array $node, array $assetsManifest): ?DataObject
     {
         $class = $node['className'] ?? '';
 
@@ -111,15 +113,24 @@ class SiteTreeImporter
 
         /** @var DataObject $record */
         $record = $class::create();
-        $this->applyScalarFields($record, $node);
+        $this->applyScalarFields($record, $node, $assetsManifest);
         $record->write();
 
         return $record;
     }
 
-    private function applyScalarFields(DataObject $record, array $node): void
+    /**
+     * Sets every plain scalar field, additionally rewriting any shortcode-embedded File/Image
+     * references a HTML field's raw value might contain (see ContentShortcodeScanner) to point
+     * at the newly materialized asset, before the value is ever set on the record — this has to
+     * happen up front (not deferred to applyRelations()'s pass 2) because, unlike has_one/
+     * many_many resolution, rewriting a shortcode doesn't depend on the two-pass local-ID map at
+     * all, only on the assets manifest, which is available from the very start.
+     */
+    private function applyScalarFields(DataObject $record, array $node, array $assetsManifest): void
     {
         $validFields = RelationSchema::scalarFields($record->ClassName);
+        $scanner = new ContentShortcodeScanner();
 
         foreach ((array) ($node['fields'] ?? []) as $fieldName => $value) {
             if (!array_key_exists($fieldName, $validFields)) {
@@ -131,8 +142,47 @@ class SiteTreeImporter
                 continue;
             }
 
+            $shortcodeAssetKeys = (array) ($node['shortcodeAssets'][$fieldName] ?? []);
+
+            if ($shortcodeAssetKeys && is_string($value)) {
+                $value = $scanner->rewriteReferences(
+                    $value,
+                    $this->materializeShortcodeAssets($shortcodeAssetKeys, $assetsManifest, $record, $fieldName)
+                );
+            }
+
             $record->setField($fieldName, $value);
         }
+    }
+
+    /**
+     * @param array<int, string> $shortcodeAssetKeys oldFileID => assetKey
+     * @return array<int, int> oldFileID => newFileID, omitting any that couldn't be recreated
+     */
+    private function materializeShortcodeAssets(
+        array $shortcodeAssetKeys,
+        array $assetsManifest,
+        DataObject $record,
+        string $fieldName
+    ): array {
+        $idMap = [];
+
+        foreach ($shortcodeAssetKeys as $oldFileID => $assetKey) {
+            $asset = $this->assetBundler->materializeAsset($assetKey, $assetsManifest);
+
+            if ($asset === null) {
+                $this->flagMismatch(
+                    "Could not recreate a file referenced inside \"{$record->ClassName}.{$fieldName}\"; that"
+                    . ' shortcode was left pointing at its original (likely nonexistent) ID.'
+                );
+
+                continue;
+            }
+
+            $idMap[(int) $oldFileID] = (int) $asset->ID;
+        }
+
+        return $idMap;
     }
 
     private function applyRelations(DataObject $record, array $node, array $manifest): void

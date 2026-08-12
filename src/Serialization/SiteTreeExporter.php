@@ -3,6 +3,7 @@
 namespace MadeCurious\SiteTreeImportExport\Serialization;
 
 use RuntimeException;
+use SilverStripe\Assets\File;
 use SilverStripe\Core\Config\Configurable;
 use SilverStripe\ORM\DataObject;
 
@@ -110,10 +111,23 @@ class SiteTreeExporter
             'hasOne' => [],
             'assetHasOne' => [],
             'manyMany' => [],
+            // relationName-shaped map is no fit here — these are IDs embedded as shortcodes
+            // inside a field's raw text (e.g. a TinyMCE Content field), invisible to every
+            // relation-based mechanism above. Keyed fieldName => {oldFileID => assetKey}.
+            'shortcodeAssets' => [],
         ];
 
         foreach (RelationSchema::scalarFields($class) as $fieldName => $spec) {
-            $node['fields'][$fieldName] = $record->getField($fieldName);
+            $value = $record->getField($fieldName);
+            $node['fields'][$fieldName] = $value;
+
+            if (is_string($value) && $value !== '' && ContentShortcodeScanner::isHtmlFieldSpec($spec)) {
+                $fieldAssetKeys = $this->captureShortcodeAssets($value);
+
+                if ($fieldAssetKeys) {
+                    $node['shortcodeAssets'][$fieldName] = $fieldAssetKeys;
+                }
+            }
         }
 
         foreach (RelationSchema::assetHasOneRelations($class) as $relationName => $targetClass) {
@@ -211,6 +225,28 @@ class SiteTreeExporter
         }
 
         return $this->assetBundler->captureAsset($file, $this->includeAssets);
+    }
+
+    /**
+     * @return array<int, string> oldFileID => assetKey, for every shortcode-referenced
+     *     File/Image found in $htmlValue that still actually exists.
+     */
+    private function captureShortcodeAssets(string $htmlValue): array
+    {
+        $scanner = new ContentShortcodeScanner();
+        $assetKeys = [];
+
+        foreach ($scanner->extractReferences($htmlValue) as $reference) {
+            $file = File::get()->byID($reference['id']);
+
+            if (!$file || !$file->exists()) {
+                continue;
+            }
+
+            $assetKeys[$reference['id']] = $this->assetBundler->captureAsset($file, $this->includeAssets);
+        }
+
+        return $assetKeys;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace MadeCurious\SiteTreeImportExport\Serialization;
 
 use SilverStripe\Assets\File;
+use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Config\Configurable;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DataObjectSchema;
@@ -29,6 +30,13 @@ class RelationSchema
         'ClassName',
         'Created',
         'LastEdited',
+        // Excluded here too, not only via hasOneRelations() skipping "Parent" (see
+        // isTreePositionRelation()) — scalarFields() only strips a has_one's raw FK column by
+        // cross-referencing hasOneRelations()'s output, so excluding "Parent" there on its own
+        // just made ParentID fall through and get treated as an ordinary scalar field instead
+        // of being excluded — reported live as the source page's original parent leaking into
+        // freshly imported pages regardless of which parent the editor actually chose.
+        'ParentID',
         'Version',
         'RecordClassName',
     ];
@@ -90,7 +98,8 @@ class RelationSchema
 
     /**
      * has_one relations declared on $class (own + inherited, incl. via applied extensions),
-     * excluding relations to File/Image (those are asset relations, see {@see isFileRelation}).
+     * excluding relations to File/Image (those are asset relations, see {@see isFileRelation})
+     * and excluding SiteTree's own tree-position `Parent` has_one (see below).
      *
      * @return array<string, string> relationName => target class (DataObject::class for
      *     polymorphic relations, resolved per-row at read time)
@@ -105,10 +114,32 @@ class RelationSchema
                 continue;
             }
 
+            if (static::isTreePositionRelation($class, $name)) {
+                continue;
+            }
+
             $relations[$name] = $targetClass;
         }
 
         return $relations;
+    }
+
+    /**
+     * Every SiteTree (sub)class automatically gets a `Parent` has_one via the Hierarchy trait
+     * (`'has_one' => ['Parent' => $class]`, framework/src/ORM/Hierarchy/Hierarchy.php) — this is
+     * WHERE THE PAGE LIVES IN THE TREE, not page content, and the import flow already has its
+     * own explicit mechanism for that (the "top-level or under another page" step, which sets
+     * the stub's ParentID before the importer ever runs). Treating it like ordinary content
+     * would capture the source page's OWN original parent at export time and then blindly
+     * overwrite whatever parent the editor chose during import with it. This is deliberately
+     * scoped to SiteTree specifically (via is_a, so it covers every page subclass) rather than
+     * excluding any has_one merely NAMED "Parent" — Elemental's BaseElement.Parent and
+     * Userforms' EditableFormField.Parent are both genuine owned-content relations that must
+     * NOT be excluded, and they happen to reuse the same relation name on unrelated classes.
+     */
+    private static function isTreePositionRelation(string $class, string $relationName): bool
+    {
+        return $relationName === 'Parent' && is_a($class, SiteTree::class, true);
     }
 
     /**

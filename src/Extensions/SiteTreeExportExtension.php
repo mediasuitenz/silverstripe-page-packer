@@ -6,7 +6,6 @@ use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
 use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
 use SilverStripe\Core\Extension;
-use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\FormAction;
 use SilverStripe\Forms\HeaderField;
@@ -14,10 +13,11 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\Security\Permission;
 
 /**
- * Adds the "Content Export" section to a page's Settings tab: an include-assets toggle, an
- * Export button, and a history list of this page's past {@see ExportRequest}s (both real
- * exports and the file originally uploaded to import this page, if it was created that way) —
- * newest first, each with a stale badge and a download link once complete.
+ * Adds the "Content Export" section to a page's Settings tab: two export buttons (with/without
+ * assets — see updateCMSActions()'s doc comment for why this is two actions and not one action
+ * plus a checkbox field) and a history list of this page's past {@see ExportRequest}s (both
+ * real exports and the file originally uploaded to import this page, if it was created that
+ * way) — newest first, each with a stale badge and a download link once complete.
  */
 class SiteTreeExportExtension extends Extension
 {
@@ -39,12 +39,6 @@ class SiteTreeExportExtension extends Extension
             _t(self::class . '.SECTION_TITLE', 'Content Export')
         ));
 
-        $fields->addFieldToTab('Root.Settings', CheckboxField::create(
-            'SiteTreeExportIncludeAssets',
-            _t(self::class . '.INCLUDE_ASSETS', 'Include referenced files/images in the export'),
-            true
-        ));
-
         $fields->addFieldToTab('Root.Settings', LiteralField::create(
             'SiteTreeExportHistory',
             $this->renderHistory()
@@ -52,8 +46,16 @@ class SiteTreeExportExtension extends Extension
     }
 
     /**
-     * Hides the Export action while an export for this page is already in flight, so an editor
-     * can't queue a second concurrent export of the same page.
+     * Two distinct actions — "Export" and "Export with Assets" — rather than one "Export" action
+     * plus an include-assets checkbox field: a checkbox on this same edit form would be a field
+     * on the SiteTree record itself, tied to the record's own save/publish lifecycle (the CMS
+     * would treat toggling it as an unsaved change to the page, and its value would only take
+     * effect once actually saved) even though it has nothing to do with the page's own content.
+     * Making the choice part of which button is clicked keeps it atomic with the export action
+     * itself, with nothing to save first.
+     *
+     * Hides both actions while an export for this page is already in flight, so an editor can't
+     * queue a second concurrent export of the same page.
      */
     public function updateCMSActions(FieldList $actions): void
     {
@@ -77,11 +79,17 @@ class SiteTreeExportExtension extends Extension
             'doExport',
             _t(self::class . '.EXPORT_BUTTON', 'Export')
         )->setUseButtonTag(true);
+        $exportWithAssetsAction = FormAction::create(
+            'doExportWithAssets',
+            _t(self::class . '.EXPORT_WITH_ASSETS_BUTTON', 'Export with Assets')
+        )->setUseButtonTag(true);
 
         if ($moreOptions) {
             $moreOptions->push($exportAction);
+            $moreOptions->push($exportWithAssetsAction);
         } else {
             $actions->push($exportAction);
+            $actions->push($exportWithAssetsAction);
         }
     }
 

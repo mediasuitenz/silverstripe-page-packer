@@ -15,7 +15,7 @@ use SilverStripe\Security\Security;
 use Symbiote\QueuedJobs\Services\QueuedJobService;
 
 /**
- * Handles the "Export" action added to the page edit form by
+ * Handles the "Export"/"Export with Assets" actions added to the page edit form by
  * {@see SiteTreeExportExtension::updateCMSActions()}, mirroring
  * andrewandante/silverstripe-async-publisher's AsyncCMSMain::asyncSave() response pattern
  * (X-Status header + PJAX response negotiator) so the CMS surfaces a normal toast rather than a
@@ -25,9 +25,20 @@ class CMSMainExportActionExtension extends Extension
 {
     private static $allowed_actions = [
         'doExport',
+        'doExportWithAssets',
     ];
 
     public function doExport(array $data, Form $form): HTTPResponse
+    {
+        return $this->export($data, false);
+    }
+
+    public function doExportWithAssets(array $data, Form $form): HTTPResponse
+    {
+        return $this->export($data, true);
+    }
+
+    private function export(array $data, bool $includeAssets): HTTPResponse
     {
         if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return Security::permissionFailure($this->owner);
@@ -44,8 +55,6 @@ class CMSMainExportActionExtension extends Extension
         if (!$record->canView()) {
             return Security::permissionFailure($this->owner);
         }
-
-        $includeAssets = !empty($data['SiteTreeExportIncludeAssets']);
 
         $exportRequest = ExportRequest::create();
         $exportRequest->PageID = $record->ID;
