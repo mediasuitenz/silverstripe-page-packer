@@ -2,7 +2,11 @@
 
 namespace MadeCurious\SiteTreeImportExport\Tests;
 
+use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\CMS\Model\SiteTree;
+use SilverStripe\Control\HTTPRequest;
+use SilverStripe\Control\Session;
 use SilverStripe\Dev\SapphireTest;
 
 class SiteTreeExportExtensionTest extends SapphireTest
@@ -34,5 +38,42 @@ class SiteTreeExportExtensionTest extends SapphireTest
         foreach ($root->Tabs() as $tab) {
             $this->assertNotSame('ExportRequests', $tab->getName());
         }
+    }
+
+    /**
+     * The Export trigger belongs behind the "More options" three-dot popup next to Save/Publish
+     * (ActionMenus.MoreOptions — the same Tab SiteTree's own Unpublish/Rollback actions live in),
+     * not as a top-level button in the main action bar.
+     */
+    public function testExportTriggerIsInMoreOptionsNotTopLevel(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+
+        $page = SiteTree::create(['Title' => 'A page']);
+        $page->write();
+
+        $request = new HTTPRequest('GET', '/');
+        $request->setSession(new Session([]));
+        $controller = CMSMain::create();
+        $controller->setRequest($request);
+        $controller->pushCurrent();
+
+        try {
+            $actions = $page->getCMSActions();
+        } finally {
+            $controller->popCurrent();
+        }
+
+        $this->assertNull(
+            $actions->fieldByName('SiteTreeExportModalTrigger'),
+            'The export trigger must not sit in the top-level action bar.'
+        );
+
+        $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
+        $this->assertNotNull($moreOptions, 'Expected the ActionMenus.MoreOptions tab to exist.');
+        $this->assertNotNull(
+            $moreOptions->fieldByName('SiteTreeExportModalTrigger'),
+            'The export trigger must be inside the More options popup.'
+        );
     }
 }

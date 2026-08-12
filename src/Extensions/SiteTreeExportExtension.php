@@ -69,6 +69,14 @@ class SiteTreeExportExtension extends Extension
      *
      * Hides the button while an export for this page is already in flight, so an editor can't
      * queue a second concurrent export of the same page.
+     *
+     * Pushed into the "More options" popup (the drop-up behind the three-dot button next to
+     * Save/Publish) rather than the top-level action bar — the same TabSet/Tab
+     * (`ActionMenus`/`MoreOptions`) SiteTree::getCMSActions() itself uses for Unpublish/Rollback/
+     * etc, found by name on the $actions list core has already built by the time
+     * updateCMSActions() extension hooks run. A LiteralField renders fine inside that popup
+     * alongside FormActions — SiteTree's own "Information" panel in the same tab is a LiteralField
+     * too.
      */
     public function updateCMSActions(FieldList $actions): void
     {
@@ -119,7 +127,17 @@ class SiteTreeExportExtension extends Extension
             . 'data-modal="' . htmlspecialchars($modalHtml, ENT_QUOTES) . '">'
             . htmlspecialchars((string) _t(self::class . '.EXPORT_BUTTON', 'Export')) . '</button>';
 
-        $actions->push(LiteralField::create('SiteTreeExportModalTrigger', $triggerHtml));
+        $trigger = LiteralField::create('SiteTreeExportModalTrigger', $triggerHtml);
+
+        $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
+
+        if ($moreOptions) {
+            $moreOptions->push($trigger);
+        } else {
+            // Fallback for any theme/version that doesn't build the usual ActionMenus/MoreOptions
+            // structure — better a top-level button than a silently vanished one.
+            $actions->push($trigger);
+        }
     }
 
     /**
