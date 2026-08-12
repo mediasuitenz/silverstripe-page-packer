@@ -8,20 +8,21 @@ use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
 use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\FormAction;
-use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Security\Permission;
 
 /**
- * Adds the "Content Export" section to a page's Settings tab: two export buttons (with/without
- * assets — see updateCMSActions()'s doc comment for why this is two actions and not one action
- * plus a checkbox field) and a history list of this page's past {@see ExportRequest}s (both
- * real exports and the file originally uploaded to import this page, if it was created that
- * way) — newest first, each with a stale badge and a download link once complete.
+ * Adds a dedicated "Content Export" tab to a page's edit screen: two export buttons
+ * (with/without assets — see updateCMSActions()'s doc comment for why this is two actions and
+ * not one action plus a checkbox field) and a history list of this page's past
+ * {@see ExportRequest}s (both real exports and the file originally uploaded to import this
+ * page, if it was created that way) — newest first, each with a stale badge and a download link
+ * once complete. In its own tab (not folded into Settings) since there's nothing left to
+ * configure there now that the include-assets choice is part of which button is clicked.
  */
 class SiteTreeExportExtension extends Extension
 {
-    public function updateSettingsFields(FieldList $fields): void
+    public function updateCMSFields(FieldList $fields): void
     {
         if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return;
@@ -32,14 +33,9 @@ class SiteTreeExportExtension extends Extension
             return;
         }
 
-        // getSettingsFields() builds a FieldList whose only top-level tab is "Root.Settings" —
-        // unlike getCMSFields()'s "Root.Main", there is no "Main" tab here to target.
-        $fields->addFieldToTab('Root.Settings', HeaderField::create(
-            'SiteTreeExportHeader',
-            _t(self::class . '.SECTION_TITLE', 'Content Export')
-        ));
+        $fields->findOrMakeTab('Root.ContentExport', _t(self::class . '.TAB_TITLE', 'Content Export'));
 
-        $fields->addFieldToTab('Root.Settings', LiteralField::create(
+        $fields->addFieldToTab('Root.ContentExport', LiteralField::create(
             'SiteTreeExportHistory',
             $this->renderHistory()
         ));

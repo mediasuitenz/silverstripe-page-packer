@@ -2,9 +2,10 @@
 
 namespace MadeCurious\SiteTreeImportExport\Model;
 
+use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
@@ -16,10 +17,11 @@ use SilverStripe\Versioned\Versioned;
  * page's first history entry so an author has an immediate downloadable snapshot of what was
  * imported without needing to trigger a fresh export first).
  *
- * Shown as a history list on the page's Settings tab (newest first) by
+ * Shown as a history list on the page's Content Export tab (newest first) by
  * {@see \MadeCurious\SiteTreeImportExport\Extensions\SiteTreeExportExtension}, each with a
- * download link once Status=Complete and a "stale" badge once the page has been published again
- * since this entry's SourceLiveVersion was captured (see {@see isStale()}).
+ * download link once Status=Complete and a "stale" badge once anything in the page's owned
+ * content graph has been published again since this entry's SourceContentTimestamp was
+ * captured (see {@see isStale()}).
  */
 class ExportRequest extends DataObject
 {
@@ -38,10 +40,14 @@ class ExportRequest extends DataObject
     private static $db = [
         'Status' => "Enum('Queued,Complete,Failed','Queued')",
         'Origin' => "Enum('Export,Import','Export')",
-        // The live Version number captured at export time (see SiteTreeExporter caller). Left
-        // null for Origin=Import, since an imported page has no live version yet — see
-        // isStale() for how that's reconciled against a never-published page.
-        'SourceLiveVersion' => 'Int',
+        // The most recent LastEdited found across the page and everything it owns (see
+        // ContentTimestampWalker) at capture time — deliberately NOT just the page's own Version
+        // number: publishing a nested Elemental block bumps that block's own independent version
+        // history, not the page's, so a page whose own Version never changed can still have
+        // materially different published content. Left '' for Origin=Import, since an imported
+        // page has no live content yet at all — see isStale() for how that's reconciled against
+        // a never-published page.
+        'SourceContentTimestamp' => 'Varchar(32)',
         'StatusMessage' => 'Text',
     ];
 
@@ -81,16 +87,12 @@ class ExportRequest extends DataObject
     }
 
     /**
-     * @see the "Staleness" section of the module's implementation plan for the full rationale —
-     * this deliberately uses a version-NUMBER comparison (via the same cheap, cached primitive
-     * that backs Versioned::isLiveVersion()) rather than a timestamp, so it works uniformly for
-     * an Origin=Export entry (always has a SourceLiveVersion) and an Origin=Import entry (starts
-     * with none, because the page has never been published yet).
-     *
-     * SourceLiveVersion uses 0 as its "no live version at capture time" sentinel, not null —
-     * SilverStripe's Int db field is always created NOT NULL DEFAULT 0 (SilverStripe's DBInt
-     * hardcodes this; there's no per-field nullable override), and real published version
-     * numbers always start at 1, so the comparison below degrades correctly either way.
+     * Compares SourceContentTimestamp against a FRESH walk of the page's current live content
+     * graph (not a cached/stored value on the page itself — there's nowhere to cheaply store
+     * "latest timestamp across everything this page owns" the way Versioned::Version is cheap
+     * to look up for a single record), so this is a real query each time it's called — bounded
+     * by how much a page actually owns (a handful of blocks/fields in the typical case), not
+     * something to call in a tight loop.
      */
     public function isStale(): bool
     {
@@ -98,23 +100,27 @@ class ExportRequest extends DataObject
             return false;
         }
 
-        $pageClass = SiteTree::class;
-        $currentLive = Versioned::get_versionnumber_by_stage($pageClass, Versioned::LIVE, $this->PageID);
+        $currentTimestamp = Versioned::withVersionedMode(function () {
+            Versioned::set_stage(Versioned::LIVE);
+            $livePage = SiteTree::get()->byID($this->PageID);
 
-        if ($currentLive === null) {
+            return $livePage ? (new ContentTimestampWalker())->latestTimestamp($livePage) : null;
+        });
+
+        if ($currentTimestamp === null) {
             // Never published (or since unpublished) — nothing newer has gone live, so nothing
             // about this entry is out of date yet, regardless of origin.
             return false;
         }
 
-        if ((int) $this->SourceLiveVersion === 0) {
-            // Origin=Import: had no live version at creation time; any live version existing
-            // now means a publish has happened since — exactly "changes published after it was
+        if ($this->SourceContentTimestamp === '' || $this->SourceContentTimestamp === null) {
+            // Origin=Import: had no live content at creation time; anything live existing now
+            // means a publish has happened since — exactly "changes published after it was
             // created".
             return true;
         }
 
-        return $currentLive > $this->SourceLiveVersion;
+        return $currentTimestamp > $this->SourceContentTimestamp;
     }
 
     public function getDownloadLink(): ?string

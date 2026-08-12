@@ -4,6 +4,7 @@ namespace MadeCurious\SiteTreeImportExport\Jobs;
 
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
 use MadeCurious\SiteTreeImportExport\Serialization\AssetBundler;
+use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
 use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Injector\Injector;
@@ -88,29 +89,38 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest = $this->exportRequestID ? ExportRequest::get()->byID($this->exportRequestID) : null;
 
         try {
-            $page = Versioned::withVersionedMode(function () {
+            // The whole read+walk+timestamp-capture happens inside ONE withVersionedMode call —
+            // not just the initial page fetch — because withVersionedMode restores the prior
+            // reading mode as soon as its callback returns. Wrapping only the fetch would leave
+            // every subsequent relation read the exporter/walker performs (ElementalArea,
+            // Elements, EditableFormField, ...) running under whatever the ambient stage
+            // happened to be, silently contradicting "export reads live content only" for
+            // anything beyond the root page itself.
+            [$file, $sourceContentTimestamp] = Versioned::withVersionedMode(function () {
                 Versioned::set_stage(Versioned::LIVE);
 
-                return SiteTree::get()->byID($this->pageID);
+                $page = SiteTree::get()->byID($this->pageID);
+
+                if (!$page || !$page->exists()) {
+                    throw new RuntimeException(
+                        'Page #' . $this->pageID . ' has no published version to export.'
+                    );
+                }
+
+                $assetBundler = Injector::inst()->create(AssetBundler::class);
+                $mismatchBehaviour = SiteTreeExporter::config()->get('mismatch_behaviour');
+                $exporter = new SiteTreeExporter($assetBundler, (bool) $this->includeAssets, $mismatchBehaviour);
+                $manifest = $exporter->export($page);
+                $file = $assetBundler->writeZip($manifest, $page->URLSegment . '-export.zip');
+                $sourceContentTimestamp = (new ContentTimestampWalker())->latestTimestamp($page);
+
+                return [$file, $sourceContentTimestamp];
             });
-
-            if (!$page || !$page->exists()) {
-                throw new RuntimeException(
-                    'Page #' . $this->pageID . ' has no published version to export.'
-                );
-            }
-
-            $assetBundler = Injector::inst()->create(AssetBundler::class);
-            $mismatchBehaviour = SiteTreeExporter::config()->get('mismatch_behaviour');
-            $exporter = new SiteTreeExporter($assetBundler, (bool) $this->includeAssets, $mismatchBehaviour);
-            $manifest = $exporter->export($page);
-
-            $file = $assetBundler->writeZip($manifest, $page->URLSegment . '-export.zip');
 
             if ($exportRequest) {
                 $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
                 $exportRequest->ResultFileID = $file->ID;
-                $exportRequest->SourceLiveVersion = (int) $page->Version;
+                $exportRequest->SourceContentTimestamp = (string) $sourceContentTimestamp;
                 $exportRequest->write();
             }
 

@@ -144,9 +144,8 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
         $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->ResultFileID = $uploadedFile->ID;
-        // SourceLiveVersion deliberately left at its default (0) — see ExportRequest::isStale()'s
-        // doc comment: this page has no live version yet, and 0 is the field's NOT NULL sentinel
-        // for that, not null (SilverStripe's Int db field can't be nullable here).
+        // SourceContentTimestamp deliberately left at its default ('') — see
+        // ExportRequest::isStale()'s doc comment: this page has no live content yet at all.
         $exportRequest->write();
 
         $this->addMessage("Imported page #{$record->ID} successfully.");

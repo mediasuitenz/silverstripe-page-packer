@@ -2,27 +2,38 @@
 
 namespace MadeCurious\SiteTreeImportExport\Tests;
 
+use DNADesign\Elemental\Extensions\ElementalPageExtension;
+use DNADesign\Elemental\Models\ElementalArea;
+use DNADesign\Elemental\Models\ElementContent;
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
+use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
-use SilverStripe\Versioned\Versioned;
+use SilverStripe\ORM\FieldType\DBDatetime;
 
 class ExportRequestTest extends SapphireTest
 {
     protected $usesDatabase = true;
+
+    protected function tearDown(): void
+    {
+        DBDatetime::clear_mock_now();
+
+        parent::tearDown();
+    }
 
     public function testNeverPublishedPageIsNeverStale(): void
     {
         $page = SiteTree::create(['Title' => 'Draft only']);
         $page->write();
 
-        // Origin=Export normally always has a real SourceLiveVersion, but even an
+        // Origin=Export normally always has a real SourceContentTimestamp, but even an
         // (unrealistic) Export-origin entry against a since-unpublished page must not be
         // treated as stale — there's no newer live content to be behind.
         $request = ExportRequest::create([
             'PageID' => $page->ID,
             'Origin' => ExportRequest::ORIGIN_EXPORT,
-            'SourceLiveVersion' => 1,
+            'SourceContentTimestamp' => '2020-01-01 00:00:00',
         ]);
         $request->write();
 
@@ -37,7 +48,7 @@ class ExportRequestTest extends SapphireTest
         $request = ExportRequest::create([
             'PageID' => $page->ID,
             'Origin' => ExportRequest::ORIGIN_IMPORT,
-            // Deliberately left at its default (0) — see ExportRequest::isStale()'s doc comment.
+            // Deliberately left at its default ('') — see ExportRequest::isStale()'s doc comment.
         ]);
         $request->write();
 
@@ -50,25 +61,75 @@ class ExportRequestTest extends SapphireTest
 
     public function testExportOriginEntryIsStaleOnlyAfterANewerPublish(): void
     {
+        DBDatetime::set_mock_now('2024-01-01 12:00:00');
+
         $page = SiteTree::create(['Title' => 'Published page']);
         $page->write();
         $page->publishRecursive();
 
-        $liveVersion = Versioned::get_versionnumber_by_stage(SiteTree::class, Versioned::LIVE, $page->ID);
-
         $request = ExportRequest::create([
             'PageID' => $page->ID,
             'Origin' => ExportRequest::ORIGIN_EXPORT,
-            'SourceLiveVersion' => $liveVersion,
+            'SourceContentTimestamp' => $page->LastEdited,
         ]);
         $request->write();
 
-        $this->assertFalse($request->isStale(), 'Not stale immediately after capturing the current live version.');
+        $this->assertFalse($request->isStale(), 'Not stale immediately after capturing the current live content.');
 
+        DBDatetime::set_mock_now('2024-01-01 12:05:00');
         $page->Title = 'Published page, edited';
         $page->write();
         $page->publishRecursive();
 
-        $this->assertTrue($request->isStale(), 'Stale after a newer publish.');
+        $this->assertTrue($request->isStale(), 'Stale after a newer publish of the page itself.');
+    }
+
+    /**
+     * The actual bug this mechanism exists to catch: publishing a nested Elemental block bumps
+     * that block's own independent version history, not the page's — a page whose own Version
+     * (or, before this fix, LastEdited alone) never changed could still have materially
+     * different published content underneath it.
+     */
+    public function testStaleAfterPublishingANestedBlockEvenWhenThePageItselfIsUntouched(): void
+    {
+        if (!class_exists('Page') || !\Page::has_extension(ElementalPageExtension::class)) {
+            $this->markTestSkipped('Page does not have ElementalPageExtension applied in this environment.');
+        }
+
+        DBDatetime::set_mock_now('2024-01-01 12:00:00');
+
+        $page = \Page::create(['Title' => 'Page with a block']);
+        $page->write();
+
+        $area = ElementalArea::create();
+        $area->write();
+        $page->ElementalAreaID = $area->ID;
+        $page->write();
+
+        $element = ElementContent::create(['HTML' => '<p>Original</p>']);
+        $element->ParentID = $area->ID;
+        $element->write();
+        $page->publishRecursive();
+
+        $request = ExportRequest::create([
+            'PageID' => $page->ID,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'SourceContentTimestamp' => (new ContentTimestampWalker())->latestTimestamp($page),
+        ]);
+        $request->write();
+
+        $this->assertFalse($request->isStale(), 'Not stale immediately after capturing.');
+
+        DBDatetime::set_mock_now('2024-01-01 12:05:00');
+        // Edit and publish ONLY the block — the page record itself is never written again.
+        $element->HTML = '<p>Updated</p>';
+        $element->write();
+        $element->publishRecursive();
+
+        $this->assertTrue(
+            $request->isStale(),
+            'Must be stale after publishing a change to a nested block, even though the page'
+            . ' record itself was never re-saved.'
+        );
     }
 }
