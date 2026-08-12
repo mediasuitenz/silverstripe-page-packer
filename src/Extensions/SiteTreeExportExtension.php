@@ -36,6 +36,20 @@ class SiteTreeExportExtension extends Extension
     ];
 
     /**
+     * SiteTree::getCMSFields() ends by calling parent::getCMSFields() (DataObject's generic
+     * FormScaffolder), which auto-generates a tab for every has_many relation it doesn't already
+     * know to skip — declaring the has_many above got us a free "Export requests" tab we never
+     * asked for, sitting directly under Root alongside "Main", duplicating
+     * CMSPageContentExportController's own dedicated top-level tab. Removed here rather than
+     * prevented at declaration time — there's no equivalent to userforms'
+     * $scaffold_cms_fields_settings['ignoreRelations'] on SiteTree itself to hook into instead.
+     */
+    public function updateCMSFields(FieldList $fields): void
+    {
+        $fields->removeByName('ExportRequests');
+    }
+
+    /**
      * Adds a plain (non-FormAction) trigger button carrying the whole modal — form and all — as
      * a `data-modal` HTML string, exactly mirroring
      * `SilverStripe\Forms\GridField\GridFieldImportButton`'s own CSV-import dialog: the JS (see
