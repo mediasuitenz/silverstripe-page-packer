@@ -85,6 +85,14 @@ class CMSPageContentExportController extends CMSMain
         // it with CSS) is what actually reclaims the full-width layout.
         $form->removeExtraClass('cms-previewable');
 
+        // LeftAndMain::getEditForm() pushes a "SilverStripeNavigator" LiteralField (the
+        // draft/published state slider + view links) directly onto our own $fields FieldList
+        // before the Form is even built — cms-previewable only stops the JS mounting a *preview
+        // pane* for it, the field itself still renders inline regardless. History strips this by
+        // discarding its whole field list after the fact; we don't need a full field list, just
+        // this one field gone.
+        $form->Fields()->removeByName('SilverStripeNavigator');
+
         return $form;
     }
 }
