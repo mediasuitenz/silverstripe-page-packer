@@ -1,7 +1,23 @@
-# silverstripe-page-packer
+# sitetree-import-export
 
-This branch (`main`) is intentionally kept minimal so incoming work can be reviewed properly as a
-pull request.
+Import and export SilverStripe `SiteTree` content.
 
-All development happens on [`develop`](../../tree/develop) — open a PR from `develop` into `main`
-to review the module in full.
+## Requirements
+
+* PHP ^8.3
+* silverstripe/framework ^6
+* silverstripe/cms ^6
+
+## Installation
+
+```
+composer require madecurious/sitetree-import-export
+```
+
+## Status
+
+Scaffold only — functionality not yet implemented.
+
+## Licence
+
+BSD-3-Clause. See [LICENSE](LICENSE).

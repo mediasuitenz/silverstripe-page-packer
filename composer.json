@@ -1,0 +1,45 @@
+{
+    "name": "madecurious/sitetree-import-export",
+    "description": "Import and export SilverStripe SiteTree content.",
+    "type": "silverstripe-vendormodule",
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Andrew Paxley",
+            "email": "andrew.paxley@madecurious.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "silverstripe/framework": "^6",
+        "silverstripe/cms": "^6"
+    },
+    "require-dev": {
+        "silverstripe/standards": "^1",
+        "phpunit/phpunit": "^11",
+        "squizlabs/php_codesniffer": "^3.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "MadeCurious\\SiteTreeImportExport\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MadeCurious\\SiteTreeImportExport\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "expose": [
+            "client/dist"
+        ]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "silverstripe/vendor-plugin": true
+        }
+    }
+}
