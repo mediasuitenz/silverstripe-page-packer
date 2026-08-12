@@ -80,6 +80,13 @@ class SiteTreeExportExtension extends Extension
             return;
         }
 
+        // Registered before the locked check, deliberately: this script also contains the
+        // toast-on-redirect detection (see requireModalScript()'s doc comment), which needs to
+        // run on exactly the page load right after a submission — i.e. precisely while the page
+        // is (correctly) locked from just having queued a job. Gating script registration behind
+        // "not locked" would silently drop the one toast that actually matters.
+        $this->requireModalScript();
+
         $locked = $this->owner->hasExtension(SiteTreeLockExtension::class)
             && $this->owner->pendingJobExists([SiteTreeExportJob::class]);
 
@@ -92,8 +99,6 @@ class SiteTreeExportExtension extends Extension
         if (!$controller || !$controller->hasMethod('ExportModalForm')) {
             return;
         }
-
-        $this->requireModalScript();
 
         $modalId = 'SiteTreeExportModal';
         $form = $controller->ExportModalForm();
@@ -118,11 +123,15 @@ class SiteTreeExportExtension extends Extension
     }
 
     /**
-     * Generalizes GridFieldImportButton's own shipped modal-open/close JS (entwine-scoped to
-     * `.grid-field .action.action_import:button`, so it never fires for this module's trigger)
-     * to work for any `[data-toggle="modal"][data-modal]` element, anywhere in the CMS —
-     * ~20 lines of plain JS via Requirements::customScript(), no build pipeline, idempotent
-     * (guarded both by a JS-side flag and by Requirements' own de-duplication-by-key).
+     * Two things, one small script: generalizes GridFieldImportButton's own shipped
+     * modal-open/close JS (entwine-scoped to `.grid-field .action.action_import:button`, so it
+     * never fires for this module's trigger) to work for any `[data-toggle="modal"][data-modal]`
+     * element, anywhere in the CMS; and, on load, checks for a `sitetree-export-toast` query
+     * param (set by CMSMainExportActionExtension::doExport()'s post-submission redirect) and
+     * renders it as a toast using the CMS's own `.toasts`/`.toast` markup/CSS (already loaded;
+     * there's just no way to dispatch into React's own toast system from outside it). All via
+     * Requirements::customScript(), no build pipeline, idempotent (guarded both by a JS-side flag
+     * and by Requirements' own de-duplication-by-key).
      */
     private function requireModalScript(): void
     {
@@ -182,6 +191,43 @@ class SiteTreeExportExtension extends Extension
             closeModal(e.target);
         }
     });
+
+    // The modal's own form submits as a plain (non-AJAX) browser POST — see
+    // CMSMainExportActionExtension::doExport()'s doc comment for why — so there's no PJAX
+    // response for the CMS's own X-Status/toast handling to react to. Instead, doExport()
+    // redirects here with the confirmation message in the query string; show it as a toast
+    // using the CMS's own .toasts/.toast markup and CSS (already loaded, just never assembled
+    // outside React's own toast system, which nothing outside React can dispatch into), then
+    // strip the param so refreshing the page doesn't show it again.
+    var params = new URLSearchParams(window.location.search);
+    var toastMessage = params.get('sitetree-export-toast');
+
+    if (toastMessage) {
+        var container = document.querySelector('.toasts');
+
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'toasts';
+            document.body.appendChild(container);
+        }
+
+        var toast = document.createElement('div');
+        toast.className = 'toast toast--good';
+        toast.innerHTML = '<div class="toast-header"><strong>Export</strong></div>'
+            + '<div class="toast-body"></div>';
+        toast.querySelector('.toast-body').textContent = toastMessage;
+        container.appendChild(toast);
+
+        setTimeout(function () {
+            toast.remove();
+        }, 6000);
+
+        params.delete('sitetree-export-toast');
+
+        var newSearch = params.toString();
+        var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+        window.history.replaceState(null, '', newUrl);
+    }
 })();
 JS, 'sitetree-import-export-modal');
     }

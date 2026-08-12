@@ -8,6 +8,7 @@ use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\Form;
 use SilverStripe\Forms\GridField\GridField;
 use SilverStripe\Forms\GridField\GridFieldConfig_Base;
+use SilverStripe\Forms\GridField\GridFieldDataColumns;
 use SilverStripe\Forms\GridField\GridFieldDeleteAction;
 use SilverStripe\Security\Permission;
 
@@ -52,6 +53,18 @@ class CMSPageContentExportController extends CMSMain
         if ($record && Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             $config = GridFieldConfig_Base::create();
             $config->addComponent(GridFieldDeleteAction::create());
+
+            // setFieldCasting() is NOT the right tool here, despite the name: it routes through
+            // GridField::getCastedValue(), which always calls DBField::XML() —
+            // Convert::raw2xml($this->RAW()), an UNCONDITIONAL escape that DBHTMLText/
+            // DBHTMLFragment do not override. setFieldFormatting()'s callback, by contrast, is
+            // genuinely the final output with no further escaping — so it works by simply
+            // ignoring the (already-escaped) $value GridField hands it and reading the raw
+            // property straight off $item instead.
+            $config->getComponentByType(GridFieldDataColumns::class)->setFieldFormatting([
+                'StaleBadge' => fn ($value, $item) => $item->StaleBadge,
+                'DownloadLinkHtml' => fn ($value, $item) => $item->DownloadLinkHtml,
+            ]);
 
             $fields = FieldList::create(
                 GridField::create(

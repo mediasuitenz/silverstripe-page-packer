@@ -2,10 +2,10 @@
 
 namespace MadeCurious\SiteTreeImportExport\Extensions;
 
+use MadeCurious\SiteTreeImportExport\Controllers\CMSPageContentExportController;
 use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
 use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
 use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
-use SilverStripe\CMS\Controllers\CMSPageEditController;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Core\Extension;
@@ -101,10 +101,22 @@ class CMSMainExportActionExtension extends Extension
         $job = new SiteTreeExportJob($record, $includeAssets, $exportRequest->ID);
         QueuedJobService::singleton()->queueJob($job);
 
-        // A plain (non-AJAX) form submission — the modal is detached from the CMS's own PJAX
-        // panel system (appended to <body>, see the JS), so a normal redirect back to the edit
-        // screen is the simplest correct response, rather than trying to route this through
-        // getResponseNegotiator() the way an in-form action would.
-        return $this->owner->redirect(CMSPageEditController::singleton()->Link('show/' . $record->ID));
+        $message = _t(
+            self::class . '.QUEUED_FOR_EXPORT',
+            "Queued '{title}' for export.",
+            ['title' => $record->Title]
+        );
+
+        // A plain (non-AJAX) form submission causes a real browser navigation on this redirect,
+        // not a PJAX panel swap — the CMS's own X-Status/toast handling only fires for AJAX
+        // responses, so there's nothing to hook into here. Instead: land on the Content Export
+        // tab (where the queued export will shortly appear in the history list) with the
+        // confirmation message in the query string; SiteTreeExportExtension's JS reads it on
+        // load, renders a toast using the CMS's own .toasts/.toast markup/CSS, and strips the
+        // param from the URL so a refresh doesn't re-show it.
+        $link = CMSPageContentExportController::singleton()->Link('show/' . $record->ID)
+            . '?sitetree-export-toast=' . rawurlencode($message ?? '');
+
+        return $this->owner->redirect($link);
     }
 }
