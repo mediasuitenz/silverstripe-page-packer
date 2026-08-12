@@ -144,6 +144,9 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
         $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->ResultFileID = $uploadedFile->ID;
+        // No checkbox to read a choice from at import time — determined from the zip itself
+        // instead (see AssetBundler::hasEmbeddedAssets()'s doc comment).
+        $exportRequest->IncludeAssets = $assetBundler->hasEmbeddedAssets($manifest);
         // SourceContentTimestamp deliberately left at its default ('') — see
         // ExportRequest::isStale()'s doc comment: this page has no live content yet at all.
         $exportRequest->write();

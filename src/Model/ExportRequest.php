@@ -53,6 +53,13 @@ class ExportRequest extends DataObject
         // Free-text note an author can attach when triggering an export, e.g. "before redesign"
         // — shown in the history list so past exports are distinguishable at a glance.
         'Description' => 'Varchar(255)',
+        // Whether referenced files/images were bundled into this specific file. For
+        // Origin=Export this is exactly the modal's checkbox value; for Origin=Import there's no
+        // checkbox to read (nobody chose anything when the file was uploaded to create the
+        // page), so SiteTreeImportJob sets it by checking whether the uploaded zip actually
+        // contains embedded asset bytes (see AssetBundler::hasEmbeddedAssets()) — giving a
+        // consistent, meaningful signal across both origins.
+        'IncludeAssets' => 'Boolean',
     ];
 
     private static $has_one = [
@@ -69,6 +76,7 @@ class ExportRequest extends DataObject
         'Origin' => 'Origin',
         'Status' => 'Status',
         'Member.Title' => 'Requested by',
+        'IncludeAssetsLabel' => 'Assets included',
         'StaleBadge' => 'Stale',
         'DownloadLinkHtml' => 'File',
     ];
@@ -171,8 +179,40 @@ class ExportRequest extends DataObject
     {
         $link = $this->getDownloadLink();
 
-        return $link
-            ? '<a href="' . htmlspecialchars($link) . '">' . _t(self::class . '.DOWNLOAD', 'Download') . '</a>'
-            : '';
+        if (!$link) {
+            return '';
+        }
+
+        $label = _t(self::class . '.DOWNLOAD', 'Download');
+        $size = $this->getFormattedFileSize();
+
+        if ($size !== null) {
+            $label .= ' (' . $size . ')';
+        }
+
+        return '<a href="' . htmlspecialchars($link) . '">' . htmlspecialchars($label) . '</a>';
+    }
+
+    public function getIncludeAssetsLabel(): string
+    {
+        return $this->IncludeAssets
+            ? _t(self::class . '.ASSETS_YES', 'Yes')
+            : _t(self::class . '.ASSETS_NO', 'No');
+    }
+
+    private function getFormattedFileSize(): ?string
+    {
+        $file = $this->ResultFileID ? $this->ResultFile() : null;
+
+        if (!$file || !$file->exists()) {
+            return null;
+        }
+
+        // File::getSize() (-> File::format_size()) is core's own existing formatter — reused
+        // as-is rather than hand-rolling one, at the cost of its "12 MB" (space included) style
+        // rather than "12MB".
+        $size = $file->getSize();
+
+        return $size !== false ? $size : null;
     }
 }

@@ -182,6 +182,44 @@ class AssetBundler
         return $file;
     }
 
+    /**
+     * Whether the opened zip (see {@see readZip()}) actually contains embedded bytes for any of
+     * the manifest's referenced assets — distinct from the manifest simply listing assets at
+     * all, which it does regardless of whether "include assets" was on at export time (see
+     * SiteTreeExporter::captureShortcodeAssets()'s doc comment: metadata is always recorded so a
+     * reference-only export can still be matched by hash, only the bytes are conditional). Used
+     * to populate ExportRequest.IncludeAssets for Origin=Import entries, where there's no
+     * checkbox to read the choice from directly.
+     */
+    public function hasEmbeddedAssets(array $manifest): bool
+    {
+        $assets = (array) ($manifest['assets'] ?? []);
+
+        if (!$assets || $this->openZipPath === null) {
+            return false;
+        }
+
+        $zip = new ZipArchive();
+
+        if ($zip->open($this->openZipPath) !== true) {
+            return false;
+        }
+
+        $found = false;
+
+        foreach ($assets as $assetInfo) {
+            if ($zip->locateName($assetInfo['zipPath'] ?? '') !== false) {
+                $found = true;
+
+                break;
+            }
+        }
+
+        $zip->close();
+
+        return $found;
+    }
+
     private function readEmbeddedBytes(string $zipPath): ?string
     {
         if ($zipPath === '' || $this->openZipPath === null) {

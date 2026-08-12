@@ -96,6 +96,7 @@ class CMSMainExportActionExtension extends Extension
         $exportRequest->Status = ExportRequest::STATUS_QUEUED;
         $exportRequest->Origin = ExportRequest::ORIGIN_EXPORT;
         $exportRequest->Description = $description;
+        $exportRequest->IncludeAssets = $includeAssets;
         $exportRequest->write();
 
         $job = new SiteTreeExportJob($record, $includeAssets, $exportRequest->ID);
