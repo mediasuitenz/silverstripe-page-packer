@@ -102,111 +102,25 @@ class CMSMainAddFormImportExtension extends Extension
     }
 
     /**
-     * UploadField (SilverStripe\AssetAdmin\Forms\UploadField) is a React component mounted by a
-     * thin Entwine bootstrap — there's no plain DOM CustomEvent fired anywhere for "a file just
-     * finished uploading" (its only signal is a jQuery `.trigger('change')` on the whole form,
-     * invisible to a native `addEventListener`, and fired for every field state change, not just
-     * a completed upload). The one reliable, version-stable signal is the hidden mirror input
-     * UploadField renders per attached file — `<input type="hidden" name="PagePackerFile[Files][]"
-     * value="{fileID}">` — present in both the server-rendered markup and whatever React renders
-     * after upload. A MutationObserver watching for that exact input appearing is what's actually
-     * being watched for below; it's cheap (this form has very few fields) and doesn't depend on
-     * any asset-admin internals beyond that one input's name attribute, which is derived directly
-     * from the field's own name and therefore about as stable a contract as this can have.
+     * Shipped as a real file, not Requirements::customScript() — that was the original
+     * implementation, and it's why the preview silently never ran for anyone navigating to
+     * "Add new page" the ordinary way (clicking through from an already-open admin session):
+     * SilverStripe's PJAX/AJAX in-app navigation only ever redelivers FILE-based requirements
+     * across a panel swap (via the `X-Include-JS`/`X-Include-CSS` response headers
+     * Requirements_Backend attaches, which the client-side router reads and dynamically injects) —
+     * an inline customScript() has no URL to reference and is simply absent from every PJAX
+     * fragment response, confirmed by directly requesting this screen with the same
+     * `X-Pjax: Content` header the CMS's own router sends: the container div came through, the
+     * script did not. It only ever "worked" when hit as a genuine full page load/reload, which
+     * is not how anyone actually uses the CMS day to day.
+     *
+     * See client/dist/js/import-preview.js for the actual detection logic and its own doc
+     * comment (UploadField fires no plain DOM event for "a file just finished uploading" at all,
+     * so it watches for the hidden mirror input the field renders per attached file instead).
      */
     private function requirePreviewScript(): void
     {
-        Requirements::customScript(<<<'JS'
-(function () {
-    if (window.__pagePackerImportPreviewReady) { return; }
-    window.__pagePackerImportPreviewReady = true;
-
-    var lastSeenFileId = null;
-
-    function escapeHtml(str) {
-        var div = document.createElement('div');
-        div.textContent = str == null ? '' : String(str);
-        return div.innerHTML;
-    }
-
-    function renderPreview(container, meta) {
-        var warning = meta.classExists ? '' : (
-            '<p class="alert alert-warning page-packer-import-preview__warning">'
-            + '&#8220;' + escapeHtml(meta.className) + '&#8221; is not a page type installed on'
-            + ' this site &mdash; the import may fail or partially apply, depending on the'
-            + ' mismatch setting.</p>'
-        );
-
-        var assetCount = meta.assetCount || 0;
-
-        container.innerHTML =
-            '<table class="table table-sm table-bordered page-packer-import-preview__table">'
-            + '<tbody>'
-            + '<tr><th scope="row">Detected class</th><td>' + escapeHtml(meta.className) + '</td></tr>'
-            + '<tr><th scope="row">Detected title</th><td>' + escapeHtml(meta.title || '—') + '</td></tr>'
-            + '<tr><th scope="row">Detected slug</th><td>' + (meta.urlSegment ? '/' + escapeHtml(meta.urlSegment) : '—') + '</td></tr>'
-            + '<tr><th scope="row">Assets attached</th><td>' + (assetCount > 0 ? assetCount : 'None') + '</td></tr>'
-            + '</tbody>'
-            + '</table>'
-            + warning;
-    }
-
-    function renderError(container, message) {
-        container.innerHTML = '<p class="alert alert-danger page-packer-import-preview__error">' + escapeHtml(message) + '</p>';
-    }
-
-    function fetchAndRenderPreview(container, fileId) {
-        container.innerHTML = '<p class="page-packer-import-preview__loading">Checking file&hellip;</p>';
-
-        var url = container.getAttribute('data-preview-url') + '?FileID=' + encodeURIComponent(fileId);
-
-        fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(function (response) {
-                return response.json().then(function (data) {
-                    return { ok: response.ok, data: data };
-                });
-            })
-            .then(function (result) {
-                if (!result.ok || result.data.error) {
-                    renderError(container, (result.data && result.data.error) || 'Could not read this file.');
-                    return;
-                }
-
-                renderPreview(container, result.data);
-            })
-            .catch(function () {
-                renderError(container, 'Could not read this file.');
-            });
-    }
-
-    function checkForUploadedFile() {
-        var container = document.getElementById('PagePackerImportPreview');
-
-        if (!container) { return; }
-
-        var input = document.querySelector('input[name="PagePackerFile[Files][]"]');
-        var fileId = input ? input.value : null;
-
-        if (fileId && fileId !== lastSeenFileId) {
-            lastSeenFileId = fileId;
-            fetchAndRenderPreview(container, fileId);
-        } else if (!fileId && lastSeenFileId) {
-            lastSeenFileId = null;
-            container.innerHTML = '';
-        }
-    }
-
-    new MutationObserver(checkForUploadedFile).observe(document.body, { childList: true, subtree: true });
-
-    // Belt-and-braces alongside the observer above: a MutationObserver depends on the upload
-    // widget actually mutating the DOM in a way {childList, subtree} catches, which held up
-    // under direct testing but isn't something this module controls (it's asset-admin's own
-    // React internals, and can change between versions/releases). A cheap poll costs nothing
-    // here — this form has very few fields — and guarantees the check still runs even if some
-    // future render path the observer doesn't see slips through.
-    setInterval(checkForUploadedFile, 500);
-})();
-JS, 'page-packer-import-preview');
+        Requirements::javascript('madecurious/silverstripe-page-packer: client/dist/js/import-preview.js');
     }
 
     /**
