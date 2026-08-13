@@ -22,15 +22,24 @@ use Symbiote\QueuedJobs\Services\QueuedJobService;
  * (native, unchanged) → 2) either pick a page type and create it (native, unchanged) OR upload a
  * previously exported file (this extension).
  *
- * This same extension class is attached to two different owners (see _config/extensions.yml),
- * because the two things it needs to hook into live on two different classes:
- * - `updateFields()` fires on `CMSMainAddForm` (`createFields()`) — adds the upload field.
- * - `updateDoAdd()` fires on `CMSMain` (`CMSMainAddForm::doAdd()`, via `$controller->extend(...)`)
- *   — takes over record creation when a file was uploaded.
+ * CMS5.4's silverstripe/cms still ships the screen as a dedicated controller,
+ * `SilverStripe\CMS\Controllers\CMSPageAddController` (`extends CMSPageEditController extends
+ * CMSMain` — its own class doc marks it `@deprecated 5.4.0 Will be replaced with
+ * SilverStripe\CMS\Forms\CMSMainAddForm in a future major release`, which is exactly the class
+ * this module's CMS6 branch targets instead — that class doesn't exist at all in this CMS5 line).
+ * Both extension points this class needs actually live on the SAME class here, not two:
+ * - `updatePageOptions()` — `CMSPageAddController::AddForm()`'s own hook name for its field list
+ *   (CMS6's equivalent `CMSMainAddForm::createFields()` hook is called `updateFields`, and its
+ *   page-type chooser field is named `RecordType`; here it's `updatePageOptions`, and the field
+ *   is named `PageType`).
+ * - `updateDoAdd()` — `CMSPageAddController::doAdd()`'s hook, identical in name and signature to
+ *   CMS6's, needing no changes.
+ * Attaching this extension once to `CMSMain` (see _config/extensions.yml) reaches both, since
+ * `CMSPageAddController` inherits CMSMain's extensions like any other subclass.
  *
  * `updateDoAdd(&$record, $form)` receives $record BY REFERENCE (Extensible::extend()'s variadic
  * arguments are all by-ref) — reassigning it here changes what `doAdd()` goes on to write, even
- * though `getNewItem()` already instantiated it as whatever RecordType happened to be selected
+ * though `getNewItem()` already instantiated it as whatever page type happened to be selected
  * (defaulted, never left blank) by the time this hook runs. This is what makes hooking the
  * native form viable after all — the earlier research flagged the *timing* (target class known
  * only after instantiation) as the reason to avoid this form, but reassignment-by-reference
@@ -43,13 +52,13 @@ use Symbiote\QueuedJobs\Services\QueuedJobService;
  */
 class CMSMainAddFormImportExtension extends Extension
 {
-    public function updateFields(FieldList $fields): void
+    public function updatePageOptions(FieldList $fields): void
     {
         if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return;
         }
 
-        $fields->insertAfter('RecordType', LiteralField::create(
+        $fields->insertAfter('PageType', LiteralField::create(
             'PagePackerOrDivider',
             '<p class="page-packer-or-divider">'
             . _t(self::class . '.OR', '— or —')

@@ -9,19 +9,16 @@ SilverStripe\CMS\Model\SiteTree:
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
     PagePackerExportActionExtension: MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension
-    # updateDoAdd() half of the Add-New-Page import integration — see
-    # CMSMainAddFormImportExtension's class doc for why this same extension class is also
-    # attached to CMSMainAddForm below.
+    # Reaches BOTH extension points this needs (updatePageOptions()/updateDoAdd()) via a single
+    # attachment here: CMS5.4's Add-New-Page screen is the dedicated controller
+    # SilverStripe\CMS\Controllers\CMSPageAddController (extends CMSPageEditController extends
+    # CMSMain, so it inherits this) — there's no separate CMSMainAddForm class to attach to
+    # separately the way the CMS6 branch does. See CMSMainAddFormImportExtension's class doc.
     PagePackerAddFormImportExtension: MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
     # Supplies the link/visibility the project's CMSMain_Content.ss override needs to render the
     # "Content Export" tab — see docs/templates/CMSMain_Content.ss and
     # CMSMainContentExportTabExtension's own class doc.
     PagePackerContentExportTabExtension: MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
-
-SilverStripe\CMS\Forms\CMSMainAddForm:
-  extensions:
-    # updateFields() half — adds the upload field to the native Add-New-Page form.
-    PagePackerAddFormImportExtension: MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
 
 # Default mismatch handling — 'fail' aborts an export/import with a clear error the moment an
 # unsupported relation shape or a class/field missing on the target site is encountered;
