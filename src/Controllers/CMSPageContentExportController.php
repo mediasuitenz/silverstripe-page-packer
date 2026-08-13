@@ -40,6 +40,12 @@ class CMSPageContentExportController extends CMSMain
 
     private static string $required_permission_codes = 'CMS_ACCESS_CMSMain';
 
+    // Matches CMSPageSettingsController/CMSPageHistoryViewerController: without this, any
+    // LeftAndMain subclass auto-registers as its OWN top-level CMS section in the left sidebar
+    // (labelled "Edit Page", a generic fallback since this controller declares no menu title) —
+    // a confusing dead end with no record context, not the per-page tab this is meant to be.
+    private static bool $ignore_menuitem = true;
+
     public function getTabIdentifier(): string
     {
         return 'contentexport';
