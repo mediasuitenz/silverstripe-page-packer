@@ -75,7 +75,7 @@ class CMSMainAddFormImportExtension extends Extension
         $fields->insertAfter('PagePackerOrDivider', UploadField::create(
             'PagePackerFile',
             _t(self::class . '.IMPORT_FILE', 'Import a previously exported page (.zip)')
-        )->setAllowedExtensions(['zip']));
+        )->setAllowedExtensions(['zip'])->setAllowedMaxFileNumber(1));
 
         // Empty on page load — populated by requirePreviewScript()'s JS once a file has actually
         // finished uploading, by calling importPreview() below with that file's ID. The preview
@@ -130,12 +130,17 @@ class CMSMainAddFormImportExtension extends Extension
             + ' mismatch setting.</p>'
         );
 
+        var assetCount = meta.assetCount || 0;
+
         container.innerHTML =
-            '<div class="alert alert-info page-packer-import-preview__summary">'
-            + '<strong>' + escapeHtml(meta.className) + '</strong>'
-            + (meta.title ? ' &mdash; ' + escapeHtml(meta.title) : '')
-            + (meta.urlSegment ? ' <span class="page-packer-import-preview__slug">/' + escapeHtml(meta.urlSegment) + '</span>' : '')
-            + '</div>'
+            '<table class="page-packer-import-preview__table">'
+            + '<tbody>'
+            + '<tr><th scope="row">Detected class</th><td>' + escapeHtml(meta.className) + '</td></tr>'
+            + '<tr><th scope="row">Detected title</th><td>' + escapeHtml(meta.title || '—') + '</td></tr>'
+            + '<tr><th scope="row">Detected slug</th><td>' + (meta.urlSegment ? '/' + escapeHtml(meta.urlSegment) : '—') + '</td></tr>'
+            + '<tr><th scope="row">Assets attached</th><td>' + (assetCount > 0 ? assetCount : 'None') + '</td></tr>'
+            + '</tbody>'
+            + '</table>'
             + warning;
     }
 
@@ -185,6 +190,14 @@ class CMSMainAddFormImportExtension extends Extension
     }
 
     new MutationObserver(checkForUploadedFile).observe(document.body, { childList: true, subtree: true });
+
+    // Belt-and-braces alongside the observer above: a MutationObserver depends on the upload
+    // widget actually mutating the DOM in a way {childList, subtree} catches, which held up
+    // under direct testing but isn't something this module controls (it's asset-admin's own
+    // React internals, and can change between versions/releases). A cheap poll costs nothing
+    // here — this form has very few fields — and guarantees the check still runs even if some
+    // future render path the observer doesn't see slips through.
+    setInterval(checkForUploadedFile, 500);
 })();
 JS, 'page-packer-import-preview');
     }
@@ -242,6 +255,13 @@ JS, 'page-packer-import-preview');
         }
 
         $meta['classExists'] = class_exists($meta['className']) && is_a($meta['className'], SiteTree::class, true);
+
+        // The manifest's assets section always lists every referenced file/image by hash,
+        // regardless of whether "include assets" was on at export time (see AssetBundler's own
+        // doc comment) — so this is "how many distinct files does this export reference", not
+        // "how many bytes are embedded". That's the more useful number to show here regardless:
+        // either way, it's how many files the import will try to materialise or match by hash.
+        $meta['assetCount'] = count($manifest['assets'] ?? []);
 
         return $response->setBody(json_encode($meta));
     }
