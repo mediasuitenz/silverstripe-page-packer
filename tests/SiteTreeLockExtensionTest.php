@@ -4,7 +4,6 @@ namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use PHPUnit\Framework\Attributes\DataProvider;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
@@ -45,7 +44,9 @@ class SiteTreeLockExtensionTest extends SapphireTest
         );
     }
 
-    #[DataProvider('lockingStatusProvider')]
+    /**
+     * @dataProvider lockingStatusProvider
+     */
     public function testExportLockCoversEveryActivelyPendingStatus(string $status, bool $expectedLocked): void
     {
         $page = SiteTree::create(['Title' => 'Being exported']);

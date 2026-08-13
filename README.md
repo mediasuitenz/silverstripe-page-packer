@@ -7,22 +7,24 @@ Built for moving content between separate environments (e.g. dev → UAT → pro
 
 ## Requirements
 
-* PHP ^8.3
-* silverstripe/framework ^6
-* silverstripe/cms ^6
-* silverstripe/versioned ^3
-* symbiote/silverstripe-queuedjobs ^6.2
+This branch (`develop-cms5`) targets SilverStripe CMS 5. For CMS 6, see the `develop-cms6` branch.
+
+* PHP ^8.1
+* silverstripe/framework ^5.4
+* silverstripe/cms ^5.4
+* silverstripe/versioned ^2.4
+* symbiote/silverstripe-queuedjobs ^5.3
 
 Optional, detected automatically if installed:
 
-* dnadesign/silverstripe-elemental — exports/imports Elemental content blocks
-* silverstripe/userforms — exports/imports UserDefinedForm field/recipient definitions
-* dnadesign/silverstripe-elemental-userforms — exports/imports ElementForm blocks
+* dnadesign/silverstripe-elemental ^5.4 — exports/imports Elemental content blocks
+* silverstripe/userforms ^6 — exports/imports UserDefinedForm field/recipient definitions
+* dnadesign/silverstripe-elemental-userforms ^4.2 — exports/imports ElementForm blocks
 
 ## Installation
 
 ```
-composer require madecurious/silverstripe-page-packer
+composer require madecurious/silverstripe-page-packer:dev-develop-cms5
 ```
 
 Then, to get the "Content Export" tab appearing as a genuine peer of Content/Settings/History

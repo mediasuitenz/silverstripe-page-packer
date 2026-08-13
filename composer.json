@@ -10,11 +10,11 @@
         }
     ],
     "require": {
-        "php": "^8.3",
-        "silverstripe/framework": "^6",
-        "silverstripe/cms": "^6",
-        "silverstripe/versioned": "^3",
-        "symbiote/silverstripe-queuedjobs": "^6.2"
+        "php": "^8.1",
+        "silverstripe/framework": "^5.4",
+        "silverstripe/cms": "^5.4",
+        "silverstripe/versioned": "^2.4",
+        "symbiote/silverstripe-queuedjobs": "^5.3"
     },
     "suggest": {
         "dnadesign/silverstripe-elemental": "Enables export/import of Elemental content blocks on a page",
@@ -22,12 +22,11 @@
         "dnadesign/silverstripe-elemental-userforms": "Enables export/import of ElementForm blocks"
     },
     "require-dev": {
-        "silverstripe/standards": "^1",
-        "phpunit/phpunit": "^11",
+        "phpunit/phpunit": "^9.6",
         "squizlabs/php_codesniffer": "^3.7",
-        "dnadesign/silverstripe-elemental": "^6.2",
-        "silverstripe/userforms": "^7.1",
-        "dnadesign/silverstripe-elemental-userforms": "^5.1"
+        "dnadesign/silverstripe-elemental": "^5.4",
+        "silverstripe/userforms": "^6",
+        "dnadesign/silverstripe-elemental-userforms": "^4.2"
     },
     "autoload": {
         "psr-4": {
