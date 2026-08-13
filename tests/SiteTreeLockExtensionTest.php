@@ -20,6 +20,31 @@ class SiteTreeLockExtensionTest extends SapphireTest
 {
     protected $usesDatabase = true;
 
+    /**
+     * The real end-to-end path: construct the job the way CMSMainExportActionExtension::doExport()
+     * actually does, and assert its OWN getSignature() — not a hand-fabricated one — is what
+     * pendingJobExists() will find. Regression test for a real bug: getSignature() used to return
+     * signatureForRecordId()'s ID-only form while pendingJobExists() queried the ID+ClassName form
+     * from signatureForRecord(), so the two never matched and a page stayed editable throughout a
+     * genuinely in-flight export. Every other test in this file fabricates the QueuedJobDescriptor
+     * directly with signatureForRecord($page), which is exactly why it didn't catch this — it
+     * never exercised the job's own getSignature() at all.
+     */
+    public function testExportJobsOwnSignatureMatchesWhatTheLockCheckQueries(): void
+    {
+        $page = SiteTree::create(['Title' => 'Being exported']);
+        $page->write();
+
+        $job = new SiteTreeExportJob($page);
+
+        $this->assertSame(
+            SiteTreeExportJob::signatureForRecord($page),
+            $job->getSignature(),
+            "The job's own getSignature() must match signatureForRecord(), which is what"
+            . ' SiteTreeLockExtension::pendingJobExists() queries QueuedJobDescriptor for.'
+        );
+    }
+
     #[DataProvider('lockingStatusProvider')]
     public function testExportLockCoversEveryActivelyPendingStatus(string $status, bool $expectedLocked): void
     {

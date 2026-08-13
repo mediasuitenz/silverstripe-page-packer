@@ -31,6 +31,11 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
     {
         if ($page) {
             $this->pageID = $page->ID;
+            // Captured so getSignature() can embed it (see that method's doc comment) — needed
+            // because it's called well after construction (by QueuedJobService::queueJob(), and
+            // again on every resume from the persisted job data), with no live $page in scope by
+            // then.
+            $this->pageClassName = get_class($page);
             $this->includeAssets = $includeAssets;
             $this->exportRequestID = $exportRequestID;
 
@@ -54,9 +59,19 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
         return _t(self::class . '.TITLE', 'Export page (#{ID})', ['ID' => $this->pageID]);
     }
 
+    /**
+     * Must produce the exact value SiteTreeLockExtension::pendingJobExists() queries for (via
+     * signatureForRecord()) — this is what QueuedJobService::queueJob() persists onto the real
+     * QueuedJobDescriptor row, so any mismatch here means the lock silently never engages for a
+     * genuinely running export (caught the hard way: canEdit()/canPublish() kept returning true
+     * for a page mid-export, because this used to return signatureForRecordId()'s ID-only form
+     * while the lock check queried the ID+ClassName form — the two formulas never matched).
+     */
     public function getSignature(): string
     {
-        return self::signatureForRecordId((int) $this->pageID);
+        return $this->pageClassName !== null
+            ? self::signatureForIdAndClass((int) $this->pageID, $this->pageClassName)
+            : self::signatureForRecordId((int) $this->pageID);
     }
 
     /**
@@ -65,15 +80,19 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
      */
     public static function signatureForRecord(DataObject $record): string
     {
-        return md5(sprintf('sitetree-export-%s-%s', $record->ID, $record->ClassName));
+        return self::signatureForIdAndClass((int) $record->ID, $record->ClassName);
     }
 
     public static function signatureForRecordId(int $id): string
     {
-        // Class-agnostic form of the above, used by SiteTreeLockExtension when it only has an
-        // ID to hand (e.g. checking a freshly-created record before we know for certain which
-        // formula produced the running job's stored signature).
+        // Class-agnostic fallback, used only when no ClassName is available at all (defensive;
+        // getSignature() always has one once constructed with a real $page).
         return md5(sprintf('sitetree-export-%s', $id));
+    }
+
+    private static function signatureForIdAndClass(int $id, string $className): string
+    {
+        return md5(sprintf('sitetree-export-%s-%s', $id, $className));
     }
 
     public function process(): void
