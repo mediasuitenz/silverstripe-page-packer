@@ -133,7 +133,7 @@ class CMSMainAddFormImportExtension extends Extension
         var assetCount = meta.assetCount || 0;
 
         container.innerHTML =
-            '<table class="page-packer-import-preview__table">'
+            '<table class="table table-sm table-bordered page-packer-import-preview__table">'
             + '<tbody>'
             + '<tr><th scope="row">Detected class</th><td>' + escapeHtml(meta.className) + '</td></tr>'
             + '<tr><th scope="row">Detected title</th><td>' + escapeHtml(meta.title || '—') + '</td></tr>'
