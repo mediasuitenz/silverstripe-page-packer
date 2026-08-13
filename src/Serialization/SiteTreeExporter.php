@@ -69,7 +69,7 @@ class SiteTreeExporter
     }
 
     /**
-     * @return array The full manifest: format, rootLocalId, nodes, assets, warnings.
+     * @return array The full manifest: format, rootLocalId, meta, nodes, assets, warnings.
      */
     public function export(DataObject $record): array
     {
@@ -83,6 +83,15 @@ class SiteTreeExporter
         return [
             'format' => 1,
             'rootLocalId' => $rootLocalId,
+            // A deliberately flat, easy-to-read-without-walking-the-graph summary of the root
+            // page — everything here is ALSO present in nodes[rootLocalId]['fields'], but a
+            // consumer that only wants "what page is this" (e.g. a preview shown before an editor
+            // confirms an import) shouldn't need to know about rootLocalId/node structure at all.
+            'meta' => [
+                'className' => $record->ClassName,
+                'title' => $record->Title,
+                'urlSegment' => $record->URLSegment,
+            ],
             'nodes' => $this->nodes,
             'assets' => $this->assetBundler->manifest(),
             'warnings' => $this->warnings,
