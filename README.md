@@ -54,9 +54,11 @@ that way), each with a download link once complete, a delete button, and a "stal
 page's published content has changed since that export was captured.
 
 **Import**: go to **Add new page**, choose where to create it (top-level or under another page),
-then upload a previously exported file instead of picking a page type — the import runs as a
-background job too, and you land on the new (locked while importing) draft page as soon as it's
-queued.
+then upload a previously exported file instead of picking a page type. Once the file finishes
+uploading, a summary appears showing the page type, title, and URL it contains (and a warning if
+that page type isn't installed on this site) — a chance to check the file before committing to
+anything. Clicking **Create** then runs the import as a background job, and you land on the new
+(locked while importing) draft page as soon as it's queued.
 
 Both directions require the `SITETREE_IMPORT_EXPORT` permission, manageable per group under
 Security in the CMS.

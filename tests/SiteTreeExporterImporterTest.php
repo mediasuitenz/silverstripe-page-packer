@@ -107,6 +107,29 @@ class SiteTreeExporterImporterTest extends SapphireTest
     }
 
     /**
+     * The manifest's top-level `meta` block exists so a consumer (namely
+     * CMSMainAddFormImportExtension::importPreview(), shown to an editor before they confirm an
+     * import) can answer "what page is this" without needing to know about rootLocalId/node
+     * structure at all — must always match the same fields on the root node itself.
+     */
+    public function testManifestMetaBlockSummarisesTheRootPage(): void
+    {
+        $page = SiteTree::create([
+            'Title' => 'A page to export',
+            'URLSegment' => 'a-page-to-export',
+        ]);
+        $page->write();
+
+        $manifest = $this->export($page);
+
+        $this->assertSame([
+            'className' => SiteTree::class,
+            'title' => 'A page to export',
+            'urlSegment' => 'a-page-to-export',
+        ], $manifest['meta']);
+    }
+
+    /**
      * Regression test: SiteTreeExportExtension declares a real has_many from SiteTree to
      * ExportRequest (so its history GridField can use a genuine RelationList) — without an
      * explicit exclusion, the exporter would treat that as ordinary owned content and try to
