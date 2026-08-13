@@ -6,6 +6,7 @@ use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
 use SilverStripe\Assets\File;
+use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPRequest;
@@ -58,6 +59,39 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $this->assertSame('A page', $data['title']);
         $this->assertSame('a-page', $data['urlSegment']);
         $this->assertTrue($data['classExists'], 'SiteTree is always installed, so this must be true.');
+        $this->assertSame(0, $data['assetCount'], 'This page has no attached files/images.');
+    }
+
+    /**
+     * assetCount counts the manifest's assets section, i.e. distinct files/images referenced
+     * anywhere in the exported page (including ones only embedded as TinyMCE shortcodes, not just
+     * a formal has_one) — regardless of whether "include assets" was on at export time (see
+     * AssetBundler's own doc comment: metadata is always recorded so a reference-only export can
+     * still be matched by hash on import).
+     */
+    public function testAssetCountReflectsAttachedFiles(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+
+        $image = Image::create();
+        $image->setFromString('not-really-a-jpeg', 'photo.jpg');
+        $image->write();
+
+        $page = SiteTree::create([
+            'Title' => 'A page with an image',
+            'Content' => '[image id="' . $image->ID . '" alt="A photo"]',
+        ]);
+        $page->write();
+
+        $assetBundler = Injector::inst()->create(AssetBundler::class);
+        $exporter = new SiteTreeExporter($assetBundler, true, SiteTreeExporter::MISMATCH_FAIL);
+        $manifest = $exporter->export($page);
+        $file = $assetBundler->writeZip($manifest, 'preview-with-asset.zip');
+
+        $response = $this->controller()->importPreview($this->request($file->ID));
+        $data = json_decode($response->getBody(), true);
+
+        $this->assertSame(1, $data['assetCount']);
     }
 
     /**
