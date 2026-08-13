@@ -1,9 +1,9 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Model;
+namespace MadeCurious\PagePacker\Model;
 
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
-use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\Controller;
@@ -19,14 +19,14 @@ use SilverStripe\Versioned\Versioned;
  * imported without needing to trigger a fresh export first).
  *
  * Shown as a history list on the page's Content Export tab (newest first) by
- * {@see \MadeCurious\SiteTreeImportExport\Extensions\SiteTreeExportExtension}, each with a
+ * {@see \MadeCurious\PagePacker\Extensions\SiteTreeExportExtension}, each with a
  * download link once Status=Complete and a "stale" badge once anything in the page's owned
  * content graph has been published again since this entry's SourceContentTimestamp was
  * captured (see {@see isStale()}).
  */
 class ExportRequest extends DataObject
 {
-    private static $table_name = 'SiteTreeImportExport_ExportRequest';
+    private static $table_name = 'PagePacker_ExportRequest';
 
     const STATUS_QUEUED = 'Queued';
 

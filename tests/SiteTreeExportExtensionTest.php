@@ -1,8 +1,8 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Tests;
+namespace MadeCurious\PagePacker\Tests;
 
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPRequest;

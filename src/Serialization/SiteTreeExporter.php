@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Serialization;
+namespace MadeCurious\PagePacker\Serialization;
 
 use RuntimeException;
 use SilverStripe\Assets\File;

@@ -1,10 +1,10 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Extensions;
+namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeImportJob;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
-use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
@@ -50,14 +50,14 @@ class CMSMainAddFormImportExtension extends Extension
         }
 
         $fields->insertAfter('RecordType', LiteralField::create(
-            'SiteTreeImportExportOrDivider',
-            '<p class="sitetree-import-export-or-divider">'
+            'PagePackerOrDivider',
+            '<p class="page-packer-or-divider">'
             . _t(self::class . '.OR', '— or —')
             . '</p>'
         ));
 
-        $fields->insertAfter('SiteTreeImportExportOrDivider', UploadField::create(
-            'SiteTreeImportExportFile',
+        $fields->insertAfter('PagePackerOrDivider', UploadField::create(
+            'PagePackerFile',
             _t(self::class . '.IMPORT_FILE', 'Import a previously exported page (.zip)')
         )->setAllowedExtensions(['zip']));
     }
@@ -68,7 +68,7 @@ class CMSMainAddFormImportExtension extends Extension
             return;
         }
 
-        $uploadField = $form->Fields()->dataFieldByName('SiteTreeImportExportFile');
+        $uploadField = $form->Fields()->dataFieldByName('PagePackerFile');
         $items = $uploadField ? $uploadField->getItems() : null;
         $uploadedFile = $items ? $items->first() : null;
 

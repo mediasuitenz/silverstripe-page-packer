@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Serialization;
+namespace MadeCurious\PagePacker\Serialization;
 
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
@@ -61,7 +61,7 @@ class RelationSchema
         // meaningful to export nor safe (it references things like the requesting Member that
         // are never part of the exported graph, tripping the same "reference outside the
         // exported page" mismatch handling real content relations are meant to trigger).
-        'MadeCurious\\SiteTreeImportExport\\Model\\ExportRequest',
+        'MadeCurious\\PagePacker\\Model\\ExportRequest',
     ];
 
     /**

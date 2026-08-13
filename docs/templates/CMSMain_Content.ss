@@ -14,7 +14,7 @@
     This is a copy of silverstripe/cms's own CMSMain_Content.ss (as of the version installed
     when this was written) with exactly one addition: the "Content Export" <li>, gated by
     $HasContentExport and linked via $LinkPageContentExport (both supplied by
-    MadeCurious\SiteTreeImportExport\Extensions\CMSMainContentExportTabExtension, already wired
+    MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension, already wired
     onto CMSMain by this module — no further PHP changes needed once this template is copied
     in). Pattern confirmed working via andrewandante/silverstripe-clippy, which adds a "User
     Guides" tab to this exact same template the exact same way.
@@ -56,7 +56,7 @@
                     <% if $HasContentExport %>
                     <li class="nav-item content-listview<% if $TabIdentifier == 'contentexport' %> ui-tabs-active<% end_if %>">
                         <a href="$LinkPageContentExport" class="nav-link cms-panel-link" title="Form_EditForm" data-href="$LinkPageContentExport">
-                            <%t MadeCurious\\SiteTreeImportExport\\Extensions\\CMSMainContentExportTabExtension.TabContentExport 'Content Export' %>
+                            <%t MadeCurious\\PagePacker\\Extensions\\CMSMainContentExportTabExtension.TabContentExport 'Content Export' %>
                         </a>
                     </li>
                     <% end_if %>

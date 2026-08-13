@@ -1,11 +1,11 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Extensions;
+namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\SiteTreeImportExport\Controllers\CMSPageContentExportController;
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
-use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Controllers\CMSPageContentExportController;
+use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
+use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Core\Extension;
@@ -68,7 +68,7 @@ class CMSMainExportActionExtension extends Extension
         $form = Form::create($this->owner, 'ExportModalForm', $fields, $actions);
         $form->setFormAction($this->owner->Link('ExportModalForm'));
         $form->setValidationExemptActions(['doExport']);
-        $form->addExtraClass('sitetree-import-export-modal-form');
+        $form->addExtraClass('page-packer-modal-form');
 
         return $form;
     }
@@ -116,7 +116,7 @@ class CMSMainExportActionExtension extends Extension
         // load, renders a toast using the CMS's own .toasts/.toast markup/CSS, and strips the
         // param from the URL so a refresh doesn't re-show it.
         $link = CMSPageContentExportController::singleton()->Link('show/' . $record->ID)
-            . '?sitetree-export-toast=' . rawurlencode($message ?? '');
+            . '?page-packer-toast=' . rawurlencode($message ?? '');
 
         return $this->owner->redirect($link);
     }

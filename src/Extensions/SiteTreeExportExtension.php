@@ -1,10 +1,10 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Extensions;
+namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
-use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
+use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\Control\Controller;
 use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
@@ -17,7 +17,7 @@ use SilverStripe\View\Requirements;
  * description, see updateCMSActions()'s doc comment for how the modal itself works) to a page's
  * edit-screen action bar. The export history GridField this extension used to also render (as a
  * sub-tab nested inside the Content screen) now lives on its own top-level "Content Export" tab
- * instead — see {@see \MadeCurious\SiteTreeImportExport\Controllers\CMSPageContentExportController}
+ * instead — see {@see \MadeCurious\PagePacker\Controllers\CMSPageContentExportController}
  * — so it's a peer of Content/Settings/History, not buried under Content.
  */
 class SiteTreeExportExtension extends Extension
@@ -144,7 +144,7 @@ class SiteTreeExportExtension extends Extension
      * Two things, one small script: generalizes GridFieldImportButton's own shipped
      * modal-open/close JS (entwine-scoped to `.grid-field .action.action_import:button`, so it
      * never fires for this module's trigger) to work for any `[data-toggle="modal"][data-modal]`
-     * element, anywhere in the CMS; and, on load, checks for a `sitetree-export-toast` query
+     * element, anywhere in the CMS; and, on load, checks for a `page-packer-toast` query
      * param (set by CMSMainExportActionExtension::doExport()'s post-submission redirect) and
      * renders it as a toast using the CMS's own `.toasts`/`.toast` markup/CSS (already loaded;
      * there's just no way to dispatch into React's own toast system from outside it). All via
@@ -155,8 +155,8 @@ class SiteTreeExportExtension extends Extension
     {
         Requirements::customScript(<<<'JS'
 (function () {
-    if (window.__siteTreeImportExportModalReady) { return; }
-    window.__siteTreeImportExportModalReady = true;
+    if (window.__pagePackerModalReady) { return; }
+    window.__pagePackerModalReady = true;
 
     function closeModal(modalEl) {
         if (!modalEl) { return; }
@@ -164,7 +164,7 @@ class SiteTreeExportExtension extends Extension
         modalEl.style.display = 'none';
         modalEl.remove();
         document.body.classList.remove('modal-open');
-        document.querySelectorAll('[data-sitetree-import-export-backdrop]').forEach(function (el) {
+        document.querySelectorAll('[data-page-packer-backdrop]').forEach(function (el) {
             el.remove();
         });
     }
@@ -186,7 +186,7 @@ class SiteTreeExportExtension extends Extension
 
             var backdrop = document.createElement('div');
             backdrop.className = 'modal-backdrop fade show';
-            backdrop.setAttribute('data-sitetree-import-export-backdrop', '1');
+            backdrop.setAttribute('data-page-packer-backdrop', '1');
             document.body.appendChild(backdrop);
 
             modalEl.classList.add('show');
@@ -218,7 +218,7 @@ class SiteTreeExportExtension extends Extension
     // outside React's own toast system, which nothing outside React can dispatch into), then
     // strip the param so refreshing the page doesn't show it again.
     var params = new URLSearchParams(window.location.search);
-    var toastMessage = params.get('sitetree-export-toast');
+    var toastMessage = params.get('page-packer-toast');
 
     if (toastMessage) {
         var container = document.querySelector('.toasts');
@@ -240,13 +240,13 @@ class SiteTreeExportExtension extends Extension
             toast.remove();
         }, 6000);
 
-        params.delete('sitetree-export-toast');
+        params.delete('page-packer-toast');
 
         var newSearch = params.toString();
         var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
         window.history.replaceState(null, '', newUrl);
     }
 })();
-JS, 'sitetree-import-export-modal');
+JS, 'page-packer-modal');
     }
 }

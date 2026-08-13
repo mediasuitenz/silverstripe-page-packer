@@ -1,9 +1,9 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Extensions;
+namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\SiteTreeImportExport\Controllers\CMSPageContentExportController;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Controllers\CMSPageContentExportController;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\Control\Controller;
 use SilverStripe\Core\Extension;
 use SilverStripe\Security\Permission;

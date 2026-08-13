@@ -1,8 +1,8 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Controllers;
+namespace MadeCurious\PagePacker\Controllers;
 
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\Form;

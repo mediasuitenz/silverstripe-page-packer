@@ -1,13 +1,13 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Tests;
+namespace MadeCurious\PagePacker\Tests;
 
 use DNADesign\Elemental\Extensions\ElementalPageExtension;
 use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
-use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
-use MadeCurious\SiteTreeImportExport\Security\ImportExportPermissions;
-use MadeCurious\SiteTreeImportExport\Serialization\ContentTimestampWalker;
+use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\FieldType\DBDatetime;

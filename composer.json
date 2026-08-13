@@ -1,6 +1,6 @@
 {
-    "name": "madecurious/sitetree-import-export",
-    "description": "Import and export SilverStripe SiteTree content.",
+    "name": "madecurious/silverstripe-page-packer",
+    "description": "Pack up a SilverStripe page (content, Elemental blocks, Userforms definitions, assets) and move it between installs via the CMS UI.",
     "type": "silverstripe-vendormodule",
     "license": "BSD-3-Clause",
     "authors": [
@@ -31,12 +31,12 @@
     },
     "autoload": {
         "psr-4": {
-            "MadeCurious\\SiteTreeImportExport\\": "src/"
+            "MadeCurious\\PagePacker\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "MadeCurious\\SiteTreeImportExport\\Tests\\": "tests/"
+            "MadeCurious\\PagePacker\\Tests\\": "tests/"
         }
     },
     "extra": {

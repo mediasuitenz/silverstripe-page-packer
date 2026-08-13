@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Serialization;
+namespace MadeCurious\PagePacker\Serialization;
 
 use RuntimeException;
 use SilverStripe\Assets\File;
@@ -25,7 +25,7 @@ class AssetBundler
     use Injectable;
     use Configurable;
 
-    private static $import_folder = 'sitetree-import-export-imports';
+    private static $import_folder = 'page-packer-imports';
 
     /** @var array<string, array> hash => ['filename', 'mime', 'zipPath'] collected during export */
     private array $assets = [];

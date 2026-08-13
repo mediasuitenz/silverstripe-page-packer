@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Security;
+namespace MadeCurious\PagePacker\Security;
 
 use SilverStripe\Security\PermissionProvider;
 

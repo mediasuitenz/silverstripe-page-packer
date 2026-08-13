@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Serialization;
+namespace MadeCurious\PagePacker\Serialization;
 
 /**
  * Finds and rewrites File/Image references embedded as shortcodes inside HTML content field

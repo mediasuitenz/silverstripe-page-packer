@@ -1,9 +1,9 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Extensions;
+namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeImportJob;
+use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
+use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
 use SilverStripe\Control\Director;
 use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
@@ -55,13 +55,13 @@ class SiteTreeLockExtension extends Extension
 
         $message = _t(
             self::class . '.LOCKED_WARNING',
-            'This page is currently being exported/imported by MadeCurious SiteTree Import/Export.'
+            'This page is currently being exported/imported by MadeCurious PagePacker.'
             . ' Please try again in a minute or so.'
         );
         $fields->addFieldToTab(
             'Root.Main',
             LiteralField::create(
-                'SiteTreeImportExportLockedWarning',
+                'PagePackerLockedWarning',
                 '<div class="alert alert-warning">' . nl2br($message ?? '') . '</div>'
             ),
             'Title'

@@ -1,11 +1,11 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Jobs;
+namespace MadeCurious\PagePacker\Jobs;
 
-use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
-use MadeCurious\SiteTreeImportExport\Serialization\AssetBundler;
-use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter;
-use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeImporter;
+use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Serialization\AssetBundler;
+use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeImporter;
 use RuntimeException;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;

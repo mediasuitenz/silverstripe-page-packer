@@ -1,6 +1,6 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Serialization;
+namespace MadeCurious\PagePacker\Serialization;
 
 use SilverStripe\ORM\DataObject;
 
@@ -10,7 +10,7 @@ use SilverStripe\ORM\DataObject;
  * Elements, Userforms' EditableFormField/EmailRecipient trees, etc.) — for staleness detection.
  *
  * Why this exists rather than reusing the page's own Version number (as
- * {@see \MadeCurious\SiteTreeImportExport\Model\ExportRequest} originally did): editing and
+ * {@see \MadeCurious\PagePacker\Model\ExportRequest} originally did): editing and
  * publishing a nested Elemental block bumps THAT BLOCK's own independent version history, not
  * the containing page's — SiteTree, ElementalArea, and BaseElement each have entirely separate
  * Versioned version sequences, linked only by relation, not by any shared counter. A page whose

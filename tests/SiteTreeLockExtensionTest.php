@@ -1,9 +1,9 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Tests;
+namespace MadeCurious\PagePacker\Tests;
 
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeExportJob;
-use MadeCurious\SiteTreeImportExport\Jobs\SiteTreeImportJob;
+use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
+use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
 use PHPUnit\Framework\Attributes\DataProvider;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;

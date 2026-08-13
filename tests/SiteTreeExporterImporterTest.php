@@ -1,14 +1,14 @@
 <?php
 
-namespace MadeCurious\SiteTreeImportExport\Tests;
+namespace MadeCurious\PagePacker\Tests;
 
 use DNADesign\Elemental\Extensions\ElementalPageExtension;
 use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
-use MadeCurious\SiteTreeImportExport\Model\ExportRequest;
-use MadeCurious\SiteTreeImportExport\Serialization\AssetBundler;
-use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeExporter;
-use MadeCurious\SiteTreeImportExport\Serialization\SiteTreeImporter;
+use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Serialization\AssetBundler;
+use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeImporter;
 use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
