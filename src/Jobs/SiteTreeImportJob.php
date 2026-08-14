@@ -65,7 +65,7 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
 
     public function process(): void
     {
-        $currentMember - Security::getCurrentUser();
+        $currentMember = Security::getCurrentUser();
         if ($this->memberID) {
             $member = Member::get()->byID($this->memberID);
 

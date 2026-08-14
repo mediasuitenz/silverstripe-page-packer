@@ -55,7 +55,8 @@ class SiteTreeImportJobTest extends SapphireTest
 
         // Deliberately BEST_EFFORT, not FAIL — proving this is fatal either way, not merely the
         // default behaviour.
-        $job = new SiteTreeImportJob($stub, $uploadedFile, SiteTreeSerializer::MISMATCH_BEST_EFFORT);
+        SiteTreeSerializer::config()->set('mismatch_behaviour', SiteTreeSerializer::MISMATCH_BEST_EFFORT);
+        $job = new SiteTreeImportJob($stub, $uploadedFile);
 
         $caught = null;
 

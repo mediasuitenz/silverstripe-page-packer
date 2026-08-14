@@ -111,8 +111,7 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
                 }
 
                 $assetBundler = Injector::inst()->create(AssetBundler::class);
-                $mismatchBehaviour = SiteTreeSerializer::config()->get('mismatch_behaviour');
-                $serializer = SiteTreeSerializer::create($assetBundler, (bool) $this->includeAssets, $mismatchBehaviour);
+                $serializer = SiteTreeSerializer::create($assetBundler, (bool) $this->includeAssets);
                 $manifest = $serializer->export($page);
                 $file = $assetBundler->writeZip($manifest, $page->URLSegment . '-export.zip');
                 $sourceContentTimestamp = ContentTimestampWalker::create()->latestTimestamp($page);

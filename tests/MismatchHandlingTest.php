@@ -31,7 +31,9 @@ class MismatchHandlingTest extends SapphireTest
 
     private function importer(string $mismatchBehaviour): SiteTreeSerializer
     {
-        return new SiteTreeSerializer(new AssetBundler(), true, $mismatchBehaviour);
+        SiteTreeSerializer::config()->set('mismatch_behaviour', $mismatchBehaviour);
+
+        return new SiteTreeSerializer(new AssetBundler(), true);
     }
 
     private function stub(): SiteTree

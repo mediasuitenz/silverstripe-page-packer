@@ -47,7 +47,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-test.zip');
 
@@ -84,7 +84,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-with-asset.zip');
 
@@ -153,7 +153,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-test.zip');
 
