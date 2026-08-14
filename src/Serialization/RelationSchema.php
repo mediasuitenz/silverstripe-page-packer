@@ -9,8 +9,8 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DataObjectSchema;
 
 /**
- * Shared relation/field classification rules used by both {@see SiteTreeExporter} and
- * {@see SiteTreeImporter}, so the two stay in lockstep about what counts as a plain scalar
+ * Shared relation/field classification rules used by {@see SiteTreeSerializer}'s export and
+ * import directions, so the two stay in lockstep about what counts as a plain scalar
  * field, an asset relation, an in-scope object-graph relation, or something to leave alone.
  */
 class RelationSchema
@@ -20,7 +20,7 @@ class RelationSchema
     /**
      * $db field names that are never exported as plain scalar fields, either because they're
      * managed entirely by the ORM/Versioned on write (ID, ClassName, Created, LastEdited,
-     * Version) or because they're the raw FK column behind a has_one relation, which is handled
+     * Version) or because they're the raw column behind a has_one relation, which is handled
      * separately via {@see hasOneRelations()} instead of being dumped as a bare integer.
      *
      * @var string[]
@@ -30,12 +30,6 @@ class RelationSchema
         'ClassName',
         'Created',
         'LastEdited',
-        // Excluded here too, not only via hasOneRelations() skipping "Parent" (see
-        // isTreePositionRelation()) — scalarFields() only strips a has_one's raw FK column by
-        // cross-referencing hasOneRelations()'s output, so excluding "Parent" there on its own
-        // just made ParentID fall through and get treated as an ordinary scalar field instead
-        // of being excluded — reported live as the source page's original parent leaking into
-        // freshly imported pages regardless of which parent the editor actually chose.
         'ParentID',
         'Version',
         'RecordClassName',
@@ -43,10 +37,7 @@ class RelationSchema
 
     /**
      * DataObject classes that are never walked into via has_many/many_many, regardless of the
-     * relation name pointing at them. These are visitor/runtime DATA, not CONFIG — e.g.
-     * silverstripe/userforms' own UserForm::$scaffold_cms_fields_settings['ignoreRelations']
-     * excludes 'Submissions' for the same reason. Matching by class (not relation name) means a
-     * subclass renaming the relation still gets it excluded.
+     * relation name pointing at them.
      *
      * @var string[]
      */
@@ -54,25 +45,12 @@ class RelationSchema
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedForm',
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedFormField',
         'SilverStripe\\UserForms\\Model\\Submission\\SubmittedFileField',
-        // This module's OWN export-history bookkeeping (SiteTreeExportExtension's
-        // ExportRequests has_many, added so its GridField could use a real RelationList) is
-        // operational metadata ABOUT a page, not page content — walking into it would recurse
-        // into Member/ResultFile and every past export's own captured state, which is neither
-        // meaningful to export nor safe (it references things like the requesting Member that
-        // are never part of the exported graph, tripping the same "reference outside the
-        // exported page" mismatch handling real content relations are meant to trigger).
         'MadeCurious\\PagePacker\\Model\\ExportRequest',
     ];
 
     /**
      * many_many relation NAMES excluded regardless of what class declares them or what they
      * point at — for relations that aren't sensibly identified by target class alone.
-     * LinkTracking/FileTracking are SilverStripe core's own automatic content-link-scanning
-     * bookkeeping (SiteTreeLinkTracking/FileLinkTracking, applied to every SiteTree/DataObject
-     * respectively via linktracking.yml/filetracking.yml) — derived data recomputed by the
-     * framework itself whenever content is saved (via syncLinkTracking()), not authored content,
-     * and declared as many_many_through besides (see ownedManyManyRelations()'s handling of
-     * "through" relations) so there's nothing meaningful to export here regardless.
      *
      * @var string[]
      */
@@ -82,9 +60,7 @@ class RelationSchema
     ];
 
     /**
-     * Plain (non-relation, non-system) $db fields declared on $class, own + inherited, with the
-     * raw FK column for every has_one relation stripped out (those are handled by
-     * {@see hasOneRelations}, not dumped as bare integers).
+     * Plain $db fields declared on $class, own + inherited
      *
      * @return array<string, string> fieldName => field spec
      */
@@ -106,8 +82,7 @@ class RelationSchema
 
     /**
      * has_one relations declared on $class (own + inherited, incl. via applied extensions),
-     * excluding relations to File/Image (those are asset relations, see {@see isFileRelation})
-     * and excluding SiteTree's own tree-position `Parent` has_one (see below).
+     * excluding relations to File/Image (those are asset relations
      *
      * @return array<string, string> relationName => target class (DataObject::class for
      *     polymorphic relations, resolved per-row at read time)
@@ -132,19 +107,6 @@ class RelationSchema
         return $relations;
     }
 
-    /**
-     * Every SiteTree (sub)class automatically gets a `Parent` has_one via the Hierarchy trait
-     * (`'has_one' => ['Parent' => $class]`, framework/src/ORM/Hierarchy/Hierarchy.php) — this is
-     * WHERE THE PAGE LIVES IN THE TREE, not page content, and the import flow already has its
-     * own explicit mechanism for that (the "top-level or under another page" step, which sets
-     * the stub's ParentID before the importer ever runs). Treating it like ordinary content
-     * would capture the source page's OWN original parent at export time and then blindly
-     * overwrite whatever parent the editor chose during import with it. This is deliberately
-     * scoped to SiteTree specifically (via is_a, so it covers every page subclass) rather than
-     * excluding any has_one merely NAMED "Parent" — Elemental's BaseElement.Parent and
-     * Userforms' EditableFormField.Parent are both genuine owned-content relations that must
-     * NOT be excluded, and they happen to reuse the same relation name on unrelated classes.
-     */
     private static function isTreePositionRelation(string $class, string $relationName): bool
     {
         return $relationName === 'Parent' && is_a($class, SiteTree::class, true);
@@ -178,13 +140,8 @@ class RelationSchema
     }
 
     /**
-     * has_one relations declared on $class (excluding File/Image ones — see hasOneRelations())
-     * that are ALSO listed in the class's $owns config — SilverStripe's own signal (used by
-     * RecursivePublishable::findOwned() for publish/duplicate cascading) for "this points at
-     * something the record exclusively owns and is responsible for the lifecycle of", e.g.
-     * ElementalPageExtension's ElementalArea. These must be recursed into during export
-     * discovery like a tree edge, not just resolved as a reference — unlike an arbitrary has_one
-     * (say, to a Member), most of which are NOT ownership and must NOT be recursed into.
+     * has_one relations declared on $class (excluding File/Image ones) that are also listed 
+     * in the class's $owns config
      *
      * @return array<string, string> relationName => target class
      */
@@ -197,8 +154,7 @@ class RelationSchema
     }
 
     /**
-     * has_many relations declared on $class that should be walked as owned content, i.e. every
-     * has_many except ones pointing at an excluded (visitor-submission-style) class.
+     * has_many relations declared on $class that should be walked as owned content
      *
      * @return array<string, string> relationName => target class
      */

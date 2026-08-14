@@ -4,7 +4,7 @@ namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use SilverStripe\Assets\File;
 use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Controllers\CMSMain;
@@ -47,7 +47,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeExporter($assetBundler, true, SiteTreeExporter::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-test.zip');
 
@@ -84,7 +84,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeExporter($assetBundler, true, SiteTreeExporter::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-with-asset.zip');
 
@@ -153,7 +153,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
         $page->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeExporter($assetBundler, true, SiteTreeExporter::MISMATCH_FAIL);
+        $exporter = new SiteTreeSerializer($assetBundler, true, SiteTreeSerializer::MISMATCH_FAIL);
         $manifest = $exporter->export($page);
         $file = $assetBundler->writeZip($manifest, 'preview-test.zip');
 

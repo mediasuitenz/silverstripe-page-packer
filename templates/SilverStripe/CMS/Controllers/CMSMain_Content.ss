@@ -1,28 +1,5 @@
 <%--
-    Project template override required to make the "Content Export" tab appear as a genuine
-    peer of Content/Settings/History (see CMSPageContentExportController's class doc for why
-    this can't be done any other way — the native tab strip is a hardcoded 3-<li> block in
-    silverstripe/cms's own CMSMain_Content.ss, with no extension point to add a 4th).
-
-    Copy this file to your project's own template resolution path, e.g.:
-      app/templates/SilverStripe/CMS/Controllers/Includes/CMSMain_Content.ss
-
-    It is NOT shipped active inside this module: SilverStripe always resolves a project's own
-    templates ahead of a module's, never the reverse, so a module cannot make this override
-    "just work" by shipping it in its own templates/ folder — only the consuming project can.
-
-    This is a copy of silverstripe/cms's own CMSMain_Content.ss (as of the version installed
-    when this was written) with exactly one addition: the "Content Export" <li>, gated by
-    $HasContentExport and linked via $LinkPageContentExport (both supplied by
-    MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension, already wired
-    onto CMSMain by this module — no further PHP changes needed once this template is copied
-    in). Pattern confirmed working via andrewandante/silverstripe-clippy, which adds a "User
-    Guides" tab to this exact same template the exact same way.
-
-    Maintenance note: if silverstripe/cms changes this template in a future release, this
-    override will need to be manually reconciled — that's the accepted cost of the only
-    available way to get a true 4th top-level tab (see CMSPageContentExportController's class
-    doc for the alternative that needs no override at all).
+    Project template override required to make the "Content Export" tab appear next to Content/Settings/History
 --%>
 <% if $CurrentRecord %>
 <div id="pages-controller-cms-content" class="has-panel cms-content flexbox-area-grow fill-width fill-height $BaseCSSClasses" data-layout-type="border" data-pjax-fragment="Content" data-ignore-tab-state="true">

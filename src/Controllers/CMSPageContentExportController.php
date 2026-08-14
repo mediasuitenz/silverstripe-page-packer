@@ -12,24 +12,6 @@ use SilverStripe\Forms\GridField\GridFieldDataColumns;
 use SilverStripe\Forms\GridField\GridFieldDeleteAction;
 use SilverStripe\Security\Permission;
 
-/**
- * A genuine top-level CMS tab for a page's export history, peer to Content/Settings/History —
- * not achievable by adding a tab to SiteTree::getCMSFields() at all: that screen (Content) is
- * itself just one of three entirely separate controllers CMSMain/CMSPageEditController,
- * CMSPageSettingsController, and versioned-admin's CMSPageHistoryViewerController — the tab
- * strip that switches between them is a literal, hardcoded 3-`<li>` block in
- * `silverstripe/cms`'s own CMSMain_Content.ss template, with no config/extension seam a module
- * can plug a 4th entry into.
- *
- * This class is the "peer controller" half of the fix, mirroring exactly how
- * CMSPageSettingsController is built (extends CMSMain, own $url_segment, own getTabIdentifier(),
- * a getEditForm() override providing just this screen's content, with the standard
- * CMSMain wrapping/actions still applied via parent::getEditForm()). The other half — actually
- * making a 4th `<li>` appear — requires overriding CMSMain_Content.ss itself, which is NOT
- * shippable inside this module (project templates always take priority over a module's, never
- * the other way around): the project consuming this module must copy
- * docs/templates/CMSMain_Content.ss into its own app/theme. See that file's own header comment.
- */
 class CMSPageContentExportController extends CMSMain
 {
     private static string $url_segment = 'pages/contentexport';
@@ -40,10 +22,6 @@ class CMSPageContentExportController extends CMSMain
 
     private static string $required_permission_codes = 'CMS_ACCESS_CMSMain';
 
-    // Matches CMSPageSettingsController/CMSPageHistoryViewerController: without this, any
-    // LeftAndMain subclass auto-registers as its OWN top-level CMS section in the left sidebar
-    // (labelled "Edit Page", a generic fallback since this controller declares no menu title) —
-    // a confusing dead end with no record context, not the per-page tab this is meant to be.
     private static bool $ignore_menuitem = true;
 
     public function getTabIdentifier(): string
@@ -60,13 +38,7 @@ class CMSPageContentExportController extends CMSMain
             $config = GridFieldConfig_Base::create();
             $config->addComponent(GridFieldDeleteAction::create());
 
-            // setFieldCasting() is NOT the right tool here, despite the name: it routes through
-            // GridField::getCastedValue(), which always calls DBField::XML() —
-            // Convert::raw2xml($this->RAW()), an UNCONDITIONAL escape that DBHTMLText/
-            // DBHTMLFragment do not override. setFieldFormatting()'s callback, by contrast, is
-            // genuinely the final output with no further escaping — so it works by simply
-            // ignoring the (already-escaped) $value GridField hands it and reading the raw
-            // property straight off $item instead.
+            // using setFieldFormatting() to ensure we get rendered HTML
             $config->getComponentByType(GridFieldDataColumns::class)->setFieldFormatting([
                 'StaleBadge' => fn ($value, $item) => $item->StaleBadge,
                 'DownloadLinkHtml' => fn ($value, $item) => $item->DownloadLinkHtml,
@@ -85,18 +57,8 @@ class CMSPageContentExportController extends CMSMain
         }
 
         $form = parent::getEditForm($id, $fields);
-        // Same mechanism CMSPageHistoryViewerController uses to disable the preview panel on the
-        // History tab: the CMS's JS keys off this class on the edit form to decide whether to
-        // render the split preview pane at all, so removing it (rather than e.g. trying to hide
-        // it with CSS) is what actually reclaims the full-width layout.
+        // hide the redundant "preview" window
         $form->removeExtraClass('cms-previewable');
-
-        // LeftAndMain::getEditForm() pushes a "SilverStripeNavigator" LiteralField (the
-        // draft/published state slider + view links) directly onto our own $fields FieldList
-        // before the Form is even built — cms-previewable only stops the JS mounting a *preview
-        // pane* for it, the field itself still renders inline regardless. History strips this by
-        // discarding its whole field list after the fact; we don't need a full field list, just
-        // this one field gone.
         $form->Fields()->removeByName('SilverStripeNavigator');
 
         return $form;

@@ -7,7 +7,7 @@ Built for moving content between separate environments (e.g. dev → UAT → pro
 
 ## Requirements
 
-This branch (`develop-cms5`) targets SilverStripe CMS 5. For CMS 6, see the `develop-cms6` branch.
+This branch (`cms5`) targets SilverStripe CMS 5. For CMS 6, see the `cms6` branch.
 
 * PHP ^8.1
 * silverstripe/framework ^5.4
@@ -17,32 +17,15 @@ This branch (`develop-cms5`) targets SilverStripe CMS 5. For CMS 6, see the `dev
 
 Optional, detected automatically if installed:
 
-* dnadesign/silverstripe-elemental ^5.4 — exports/imports Elemental content blocks
-* silverstripe/userforms ^6 — exports/imports UserDefinedForm field/recipient definitions
-* dnadesign/silverstripe-elemental-userforms ^4.2 — exports/imports ElementForm blocks
+* dnadesign/silverstripe-elemental
+* silverstripe/userforms
+* dnadesign/silverstripe-elemental-userforms
 
 ## Installation
 
 ```
-composer require madecurious/silverstripe-page-packer:dev-develop-cms5
+composer require madecurious/silverstripe-page-packer
 ```
-
-Then, to get the "Content Export" tab appearing as a genuine peer of Content/Settings/History
-(rather than tucked away elsewhere), **copy the template override** into your project:
-
-```
-cp vendor/madecurious/silverstripe-page-packer/docs/templates/CMSMain_Content.ss \
-   app/templates/SilverStripe/CMS/Controllers/Includes/CMSMain_Content.ss
-```
-
-This is required because Content/Settings/History are three entirely separate CMS controllers,
-switched between via a tab strip that's a hardcoded 3-item list in `silverstripe/cms`'s own
-template — there's no config-driven extension point to add a 4th tab, only a template override,
-and a module can't ship that override "live" itself (project templates always take priority over
-a module's). See `docs/templates/CMSMain_Content.ss`'s own header comment for details, and
-reconcile it by hand if `silverstripe/cms` changes that template in a future release.
-
-Run `dev/build flush=1` after installing.
 
 ## Usage
 
@@ -66,12 +49,19 @@ Security in the CMS.
 ## Configuration
 
 ```yaml
-MadeCurious\PagePacker\Serialization\SiteTreeExporter:
+MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
   # 'fail' (default): abort with a clear error the moment an unsupported relation shape or a
   # class/field missing on the target site is encountered. 'best_effort': skip what doesn't
   # match and record a warning instead.
   mismatch_behaviour: best_effort
 ```
+
+## Gotchas
+
+- The Content-Export tab is added via a `CMSMain_Content.ss` override. If you are overriding this
+template already, or another module is overriding it, it won't apply - you'll need to create an
+override for it in your own project templates (`app/templates/SilverStripe/CMS/Controllers/Includes/CMSMain_Content.ss`) and combine all the changes yourself.
+- This also means if the core template changes in any way, this might fall down.
 
 ## Licence
 

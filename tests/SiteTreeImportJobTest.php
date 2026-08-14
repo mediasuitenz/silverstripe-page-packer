@@ -5,7 +5,7 @@ namespace MadeCurious\PagePacker\Tests;
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
 use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use RuntimeException;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Injector\Injector;
@@ -13,7 +13,7 @@ use SilverStripe\Dev\SapphireTest;
 
 /**
  * Covers SiteTreeImportJob::doImport()'s own guard on the ROOT node's class specifically — a
- * separate, stricter check from SiteTreeImporter's general mismatch handling (see
+ * separate, stricter check from SiteTreeSerializer's general mismatch handling (see
  * MismatchHandlingTest for that). There's no reasonable "best effort" partial import when the
  * root class itself can't be resolved (there's no page left to apply anything else to), so this
  * is fatal unconditionally, even under MISMATCH_BEST_EFFORT — confirmed explicitly below rather
@@ -55,7 +55,7 @@ class SiteTreeImportJobTest extends SapphireTest
 
         // Deliberately BEST_EFFORT, not FAIL — proving this is fatal either way, not merely the
         // default behaviour.
-        $job = new SiteTreeImportJob($stub, $uploadedFile, SiteTreeExporter::MISMATCH_BEST_EFFORT);
+        $job = new SiteTreeImportJob($stub, $uploadedFile, SiteTreeSerializer::MISMATCH_BEST_EFFORT);
 
         $caught = null;
 

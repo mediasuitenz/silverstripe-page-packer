@@ -1,15 +1,7 @@
 /**
  * Add-New-Page import preview: watches the PagePackerFile UploadField for a completed upload and
- * fills #PagePackerImportPreview with a summary (class/title/slug/asset count) via importPreview().
+ * fills #PagePackerImportPreview with a summary table (class/title/slug/asset count) via importPreview().
  *
- * Shipped as a real file (not Requirements::customScript()) deliberately: the CMS admin only
- * re-delivers FILE-based requirements across PJAX-style in-app navigation (via the X-Include-JS
- * response header the client-side router watches for) -- an inline customScript() is silently
- * absent from every PJAX/AJAX fragment response, present only on a genuine full page load. Since
- * real usage almost never involves a hard reload while already inside the admin (click "Add new
- * page" from an already-open session, the ordinary path), an inline script here would appear to
- * work when tested via a direct URL/reload and silently never run in the way editors actually use
- * the CMS. See CMSMainAddFormImportExtension::requirePreviewScript()'s own doc comment.
  */
 (function () {
     if (window.__pagePackerImportPreviewReady) { return; }
@@ -92,14 +84,6 @@
 
     new MutationObserver(checkForUploadedFile).observe(document.body, { childList: true, subtree: true });
 
-    // Belt-and-braces alongside the observer above: a MutationObserver depends on the upload
-    // widget actually mutating the DOM in a way {childList, subtree} catches, which held up
-    // under direct testing but isn't something this module controls (it's asset-admin's own
-    // React internals, and can change between versions/releases). A cheap poll costs nothing
-    // here — this form has very few fields — and guarantees the check still runs even if some
-    // future render path the observer doesn't see slips through. Also covers the case where
-    // this script itself loads (via X-Include-JS) after the container/upload field already
-    // exist in the DOM, since the observer only reacts to mutations from this point forward.
     setInterval(checkForUploadedFile, 500);
     checkForUploadedFile();
 })();

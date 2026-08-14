@@ -21,16 +21,7 @@ use SilverStripe\Security\Security;
 use Symbiote\QueuedJobs\Services\QueuedJobService;
 
 /**
- * Builds the export modal's form (see {@see SiteTreeExportExtension::updateCMSActions()}, which
- * embeds this form's rendered HTML into the trigger button's `data-modal` attribute — the same
- * pattern `SilverStripe\Forms\GridField\GridFieldImportButton` uses for its own CSV-import
- * dialog, generalized to work outside a GridField) and handles its submission.
- *
- * This is a genuinely separate `<form>`, not a checkbox/field added to the page's own edit form:
- * the modal HTML is appended directly to `<body>` on click (see the JS in
- * SiteTreeExportExtension), so it's never nested inside the CMS's own edit-form tag — avoiding
- * both the HTML-invalid nested-`<form>` problem and, more importantly, the record-dirty-tracking
- * concern a checkbox/description field would raise if it lived inside the page's own form.
+ * Builds the export modal's form and handles its submission.
  */
 class CMSMainExportActionExtension extends Extension
 {
@@ -39,14 +30,6 @@ class CMSMainExportActionExtension extends Extension
         'doExport',
     ];
 
-    /**
-     * Deliberately generic (not page-specific) — SiteTreeExportExtension::updateCMSActions()
-     * calls this and then overwrites the PageID hidden field's value for the specific page being
-     * rendered. The framework also calls this fresh (with no page context at all) to reconstruct
-     * the form when handling the POSTed submission — the actually-submitted PageID always comes
-     * through via the browser's posted form data regardless, the same way CMSMainAddForm's own
-     * ParentID handling works.
-     */
     public function ExportModalForm(): Form
     {
         $fields = FieldList::create(
@@ -81,7 +64,7 @@ class CMSMainExportActionExtension extends Extension
 
         $id = (int) ($data['PageID'] ?? 0);
         /** @var SiteTree|null $record */
-        $record = DataObject::get(SiteTree::class)->byID($id);
+        $record = SiteTree::get()->byID($id);
 
         if (!$record || !$record->exists() || !$record->canView()) {
             return Security::permissionFailure($this->owner);
@@ -108,13 +91,6 @@ class CMSMainExportActionExtension extends Extension
             ['title' => $record->Title]
         );
 
-        // A plain (non-AJAX) form submission causes a real browser navigation on this redirect,
-        // not a PJAX panel swap — the CMS's own X-Status/toast handling only fires for AJAX
-        // responses, so there's nothing to hook into here. Instead: land on the Content Export
-        // tab (where the queued export will shortly appear in the history list) with the
-        // confirmation message in the query string; SiteTreeExportExtension's JS reads it on
-        // load, renders a toast using the CMS's own .toasts/.toast markup/CSS, and strips the
-        // param from the URL so a refresh doesn't re-show it.
         $link = CMSPageContentExportController::singleton()->Link('show/' . $record->ID)
             . '?page-packer-toast=' . rawurlencode($message ?? '');
 

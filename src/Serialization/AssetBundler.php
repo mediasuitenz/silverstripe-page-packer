@@ -11,14 +11,9 @@ use ZipArchive;
 
 /**
  * Builds/reads the module's export container: a single .zip with `manifest.json` (the node graph
- * from {@see SiteTreeExporter}/{@see SiteTreeImporter}) plus an optional `assets/<hash>/<name>`
+ * from {@see SiteTreeSerializer}) plus an optional `assets/<hash>/<name>`
  * entry per referenced File/Image. Always a zip regardless of the "include assets" toggle, so
  * the CMS upload control always expects one consistent extension.
- *
- * De-duplicates by content hash against the target site's whole asset library (not just a
- * module-specific folder) — this is what makes "reference-only" export/import useful at all: if
- * the exact same file already exists on the target site, it's reused rather than needing to be
- * re-uploaded, exactly matching the "assume a shared asset library" use case.
  */
 class AssetBundler
 {
@@ -37,9 +32,7 @@ class AssetBundler
     private ?string $openZipPath = null;
 
     /**
-     * Records that $file was referenced, for inclusion in the export manifest. Always tracks
-     * metadata (filename/mime) so a "reference-only" export can still be matched by hash on
-     * import; only buffers the actual bytes for embedding when $embedBytes is true.
+     * Records that $file was referenced for inclusion in the export manifest
      */
     public function captureAsset(File $file, bool $embedBytes): string
     {
@@ -74,9 +67,7 @@ class AssetBundler
     }
 
     /**
-     * Writes manifest.json + any embedded asset bytes to a new zip, stores it as a File, and
-     * returns that File (written, draft-only — publishing is left to the caller/editor, same as
-     * every other write this module performs).
+     * Writes manifest.json + embedded assets to a new zip, returns stored a File
      */
     public function writeZip(array $manifest, string $filename): File
     {
@@ -143,10 +134,7 @@ class AssetBundler
 
     /**
      * Resolves an asset reference from a manifest's `assets` section to a real File/Image on
-     * this site: reuse an existing file with matching content hash if one exists anywhere in the
-     * asset library; otherwise, if the export embedded the bytes, create a new one from them.
-     * Returns null (never throws) if neither is possible — a reference-only export imported onto
-     * a site that doesn't already have a matching file — so the caller can warn and move on.
+     * this site
      */
     public function materializeAsset(string $hash, array $assetsManifest): ?File
     {
@@ -184,12 +172,7 @@ class AssetBundler
 
     /**
      * Whether the opened zip (see {@see readZip()}) actually contains embedded bytes for any of
-     * the manifest's referenced assets — distinct from the manifest simply listing assets at
-     * all, which it does regardless of whether "include assets" was on at export time (see
-     * SiteTreeExporter::captureShortcodeAssets()'s doc comment: metadata is always recorded so a
-     * reference-only export can still be matched by hash, only the bytes are conditional). Used
-     * to populate ExportRequest.IncludeAssets for Origin=Import entries, where there's no
-     * checkbox to read the choice from directly.
+     * the manifest's referenced assets
      */
     public function hasEmbeddedAssets(array $manifest): bool
     {

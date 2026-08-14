@@ -4,8 +4,7 @@ namespace MadeCurious\PagePacker\Jobs;
 
 use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
-use MadeCurious\PagePacker\Serialization\SiteTreeImporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use RuntimeException;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
@@ -18,24 +17,18 @@ use Symbiote\QueuedJobs\Services\QueuedJob;
 use Throwable;
 
 /**
- * Populates a pre-written stub page from an uploaded export zip: reclasses the stub to the
- * manifest's target class via `newClassInstance()` (preserving its ID/DB row — see the module's
- * implementation plan for why the stub must be plain `Page`, to avoid orphaning multi-table-
- * inheritance rows from whatever the original class introduced), then runs the two-pass
- * deserializer. Always leaves the result as a draft — see the explicit Versioned stage wrapping
- * below, never relied on ambiently, for the same reason SiteTreeExportJob wraps its read.
+ * Populates a draft page from an uploaded export zip then runs the two-pass
+ * deserializer.
  */
 class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
 {
     public function __construct(
         ?SiteTree $stub = null,
-        ?File $uploadedFile = null,
-        string $mismatchBehaviour = SiteTreeExporter::MISMATCH_FAIL
+        ?File $uploadedFile = null
     ) {
         if ($stub) {
             $this->stubID = $stub->ID;
             $this->uploadedFileID = $uploadedFile ? $uploadedFile->ID : null;
-            $this->mismatchBehaviour = $mismatchBehaviour;
 
             $member = Security::getCurrentUser();
 
@@ -63,10 +56,7 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
     }
 
     /**
-     * ID-only, deliberately never embeds ClassName — the stub's class changes mid-job via
-     * newClassInstance(), and a signature that changed with it would stop matching this job's
-     * QueuedJobDescriptor row at exactly the point the lock matters most. See
-     * SiteTreeLockExtension's class doc for the full rationale.
+     * ID-only, deliberately never embeds ClassName as the stub's class changes mid-job
      */
     public static function signatureForRecordId(int $id): string
     {
@@ -75,6 +65,7 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
 
     public function process(): void
     {
+        $currentMember - Security::getCurrentUser();
         if ($this->memberID) {
             $member = Member::get()->byID($this->memberID);
 
@@ -94,6 +85,8 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
             $this->isComplete = true;
 
             throw $e;
+        } finally {
+            Security::setCurrentUser($currentMember);
         }
 
         $this->isComplete = true;
@@ -113,15 +106,13 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
             throw new RuntimeException('The uploaded import file could not be found.');
         }
 
-        $assetBundler = Injector::inst()->create(AssetBundler::class);
+        $assetBundler = AssetBundler::create();
         $manifest = $assetBundler->readZip($uploadedFile);
 
         $rootLocalId = (string) ($manifest['rootLocalId'] ?? '0');
         $targetClass = $manifest['nodes'][$rootLocalId]['className'] ?? null;
 
-        // A completely unresolvable root class has no reasonable "best effort" partial import —
-        // there's no page to create content onto — so this is fatal regardless of
-        // mismatch_behaviour, unlike field/nested-relation mismatches further down.
+        // A completely unresolvable root class has no reasonable "best effort" partial import
         if (!$targetClass || !is_a($targetClass, SiteTree::class, true)) {
             throw new RuntimeException(
                 "\"{$targetClass}\" is not a page type that exists on this site; the file cannot be imported."
@@ -131,10 +122,10 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
         /** @var SiteTree $record */
         $record = $stub->newClassInstance($targetClass);
 
-        $importer = new SiteTreeImporter($assetBundler, $this->mismatchBehaviour);
-        $importer->import($record, $manifest);
+        $serializer = SiteTreeSerializer::create($assetBundler, true);
+        $serializer->import($record, $manifest);
 
-        foreach ($importer->warnings() as $warning) {
+        foreach ($serializer->warnings() as $warning) {
             $this->addMessage($warning, 'WARNING');
         }
 
@@ -144,11 +135,7 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
         $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->ResultFileID = $uploadedFile->ID;
-        // No checkbox to read a choice from at import time — determined from the zip itself
-        // instead (see AssetBundler::hasEmbeddedAssets()'s doc comment).
         $exportRequest->IncludeAssets = $assetBundler->hasEmbeddedAssets($manifest);
-        // SourceContentTimestamp deliberately left at its default ('') — see
-        // ExportRequest::isStale()'s doc comment: this page has no live content yet at all.
         $exportRequest->write();
 
         $this->addMessage("Imported page #{$record->ID} successfully.");
@@ -156,9 +143,7 @@ class SiteTreeImportJob extends AbstractQueuedJob implements QueuedJob
 
     /**
      * On failure, the stub is deliberately kept (not deleted) and re-titled to surface the error
-     * directly in the CMS tree/Settings tab — a silently-vanished page the editor just watched
-     * appear would be a worse "fail with a clear error" experience than a visibly broken one
-     * they can inspect and remove themselves.
+     * directly in the CMS tree/Settings tab
      */
     private function failStub(Throwable $e): void
     {

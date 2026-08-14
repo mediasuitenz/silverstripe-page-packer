@@ -20,45 +20,27 @@ use SilverStripe\Versioned\Versioned;
  *
  * Shown as a history list on the page's Content Export tab (newest first) by
  * {@see \MadeCurious\PagePacker\Extensions\SiteTreeExportExtension}, each with a
- * download link once Status=Complete and a "stale" badge once anything in the page's owned
- * content graph has been published again since this entry's SourceContentTimestamp was
- * captured (see {@see isStale()}).
+ * download link once Status=Complete and a badge indicating staleness
  */
 class ExportRequest extends DataObject
 {
     private static $table_name = 'PagePacker_ExportRequest';
 
-    const STATUS_QUEUED = 'Queued';
+    public const STATUS_QUEUED = 'Queued';
+    public const STATUS_COMPLETE = 'Complete';
+    public const STATUS_FAILED = 'Failed';
 
-    const STATUS_COMPLETE = 'Complete';
-
-    const STATUS_FAILED = 'Failed';
-
-    const ORIGIN_EXPORT = 'Export';
-
-    const ORIGIN_IMPORT = 'Import';
+    public const ORIGIN_EXPORT = 'Export';
+    public const ORIGIN_IMPORT = 'Import';
 
     private static $db = [
         'Status' => "Enum('Queued,Complete,Failed','Queued')",
         'Origin' => "Enum('Export,Import','Export')",
         // The most recent LastEdited found across the page and everything it owns (see
-        // ContentTimestampWalker) at capture time — deliberately NOT just the page's own Version
-        // number: publishing a nested Elemental block bumps that block's own independent version
-        // history, not the page's, so a page whose own Version never changed can still have
-        // materially different published content. Left '' for Origin=Import, since an imported
-        // page has no live content yet at all — see isStale() for how that's reconciled against
-        // a never-published page.
+        // ContentTimestampWalker) at capture time
         'SourceContentTimestamp' => 'Varchar(32)',
         'StatusMessage' => 'Text',
-        // Free-text note an author can attach when triggering an export, e.g. "before redesign"
-        // — shown in the history list so past exports are distinguishable at a glance.
         'Description' => 'Varchar(255)',
-        // Whether referenced files/images were bundled into this specific file. For
-        // Origin=Export this is exactly the modal's checkbox value; for Origin=Import there's no
-        // checkbox to read (nobody chose anything when the file was uploaded to create the
-        // page), so SiteTreeImportJob sets it by checking whether the uploaded zip actually
-        // contains embedded asset bytes (see AssetBundler::hasEmbeddedAssets()) — giving a
-        // consistent, meaningful signal across both origins.
         'IncludeAssets' => 'Boolean',
     ];
 
@@ -66,6 +48,10 @@ class ExportRequest extends DataObject
         'Page' => SiteTree::class,
         'Member' => Member::class,
         'ResultFile' => File::class,
+    ];
+
+    private static $owns = [
+        'ResultFile',
     ];
 
     private static $default_sort = 'Created DESC';
@@ -76,15 +62,13 @@ class ExportRequest extends DataObject
         'Origin' => 'Origin',
         'Status' => 'Status',
         'Member.Title' => 'Requested by',
-        'IncludeAssetsLabel' => 'Assets included',
+        'IncludeAssets.Nice' => 'Assets included',
         'StaleBadge' => 'Stale',
         'DownloadLinkHtml' => 'File',
     ];
 
     /**
-     * StaleBadge/DownloadLinkHtml are rendered HTML fragments (a badge span, a download link),
-     * not plain text — cast so GridFieldDataColumns (used by
-     * SiteTreeExportExtension::updateCMSFields()'s history GridField) renders them unescaped.
+     * Cast so history GridField renders them unescaped
      */
     private static $casting = [
         'StaleBadge' => 'HTMLFragment',
@@ -112,12 +96,7 @@ class ExportRequest extends DataObject
     }
 
     /**
-     * Compares SourceContentTimestamp against a FRESH walk of the page's current live content
-     * graph (not a cached/stored value on the page itself — there's nowhere to cheaply store
-     * "latest timestamp across everything this page owns" the way Versioned::Version is cheap
-     * to look up for a single record), so this is a real query each time it's called — bounded
-     * by how much a page actually owns (a handful of blocks/fields in the typical case), not
-     * something to call in a tight loop.
+     * Compares SourceContentTimestamp against a fresh walk of the page's current live content
      */
     public function isStale(): bool
     {
@@ -133,15 +112,13 @@ class ExportRequest extends DataObject
         });
 
         if ($currentTimestamp === null) {
-            // Never published (or since unpublished) — nothing newer has gone live, so nothing
-            // about this entry is out of date yet, regardless of origin.
+            // Never published (or since unpublished)
             return false;
         }
 
         if ($this->SourceContentTimestamp === '' || $this->SourceContentTimestamp === null) {
-            // Origin=Import: had no live content at creation time; anything live existing now
-            // means a publish has happened since — exactly "changes published after it was
-            // created".
+            // Origin=Import: no live content at creation time; anything live existing now
+            // means a publish has happened since
             return true;
         }
 
@@ -154,11 +131,7 @@ class ExportRequest extends DataObject
             return null;
         }
 
-        // A protected (non-public) file's getAbsoluteURL() grants temporary access via the
-        // CURRENT REQUEST'S session (FlysystemAssetStore::grant(), which reads
-        // Controller::curr()->getRequest()->getSession()) — there's no meaningful download link
-        // to produce outside a real HTTP request at all (dev/build, CLI tasks, tests), and
-        // calling it in that context throws rather than returning null, so guard explicitly.
+        // Guard explicitly against calling via CLI or tests or whatever
         if (!Controller::curr()) {
             return null;
         }
@@ -172,7 +145,7 @@ class ExportRequest extends DataObject
     {
         return $this->isStale()
             ? '<span class="badge badge-warning">' . _t(self::class . '.STALE', 'Stale') . '</span>'
-            : '';
+            : '<span class="badge badge-good">' . _t(self::class . '.FRESH', 'Fresh') . '</span>';
     }
 
     public function getDownloadLinkHtml(): string
@@ -193,13 +166,6 @@ class ExportRequest extends DataObject
         return '<a href="' . htmlspecialchars($link) . '">' . htmlspecialchars($label) . '</a>';
     }
 
-    public function getIncludeAssetsLabel(): string
-    {
-        return $this->IncludeAssets
-            ? _t(self::class . '.ASSETS_YES', 'Yes')
-            : _t(self::class . '.ASSETS_NO', 'No');
-    }
-
     private function getFormattedFileSize(): ?string
     {
         $file = $this->ResultFileID ? $this->ResultFile() : null;
@@ -208,11 +174,6 @@ class ExportRequest extends DataObject
             return null;
         }
 
-        // File::getSize() (-> File::format_size()) is core's own existing formatter — reused
-        // as-is rather than hand-rolling one, at the cost of its "12 MB" (space included) style
-        // rather than "12MB".
-        $size = $file->getSize();
-
-        return $size !== false ? $size : null;
+        return $file->getSize() ?: null;
     }
 }

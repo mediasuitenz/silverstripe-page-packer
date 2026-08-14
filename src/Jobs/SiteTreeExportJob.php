@@ -5,7 +5,7 @@ namespace MadeCurious\PagePacker\Jobs;
 use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Injector\Injector;
 use RuntimeException;
@@ -18,12 +18,7 @@ use Symbiote\QueuedJobs\Services\QueuedJob;
 use Throwable;
 
 /**
- * Reads a single page's LIVE content and produces a downloadable export zip. See the module's
- * implementation plan for why the acting Member and the read stage are restored/set explicitly
- * rather than relied on ambiently: this job runs headlessly via ddev-cron's
- * `dev/tasks/ProcessJobQueueTask`, which is a PolyCommand, not a Controller, so neither
- * `Security::getCurrentUser()` nor `Versioned::$reading_mode` are populated the way they would be
- * for a real HTTP request.
+ * Reads a single page's LIVE content and produces a downloadable export zip
  */
 class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
 {
@@ -31,10 +26,7 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
     {
         if ($page) {
             $this->pageID = $page->ID;
-            // Captured so getSignature() can embed it (see that method's doc comment) — needed
-            // because it's called well after construction (by QueuedJobService::queueJob(), and
-            // again on every resume from the persisted job data), with no live $page in scope by
-            // then.
+            // Captured so getSignature() can embed it
             $this->pageClassName = get_class($page);
             $this->includeAssets = $includeAssets;
             $this->exportRequestID = $exportRequestID;
@@ -60,12 +52,7 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
     }
 
     /**
-     * Must produce the exact value SiteTreeLockExtension::pendingJobExists() queries for (via
-     * signatureForRecord()) — this is what QueuedJobService::queueJob() persists onto the real
-     * QueuedJobDescriptor row, so any mismatch here means the lock silently never engages for a
-     * genuinely running export (caught the hard way: canEdit()/canPublish() kept returning true
-     * for a page mid-export, because this used to return signatureForRecordId()'s ID-only form
-     * while the lock check queried the ID+ClassName form — the two formulas never matched).
+     * Must produce the exact value SiteTreeLockExtension::pendingJobExists() queries for
      */
     public function getSignature(): string
     {
@@ -74,10 +61,6 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
             : self::signatureForRecordId((int) $this->pageID);
     }
 
-    /**
-     * Deliberately embeds ClassName — safe here because a read-only export never changes the
-     * source page's class, unlike SiteTreeImportJob's stub-reclassing case.
-     */
     public static function signatureForRecord(DataObject $record): string
     {
         return self::signatureForIdAndClass((int) $record->ID, $record->ClassName);
@@ -85,8 +68,7 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
 
     public static function signatureForRecordId(int $id): string
     {
-        // Class-agnostic fallback, used only when no ClassName is available at all (defensive;
-        // getSignature() always has one once constructed with a real $page).
+        // Class-agnostic fallback, used only when no ClassName is available at all
         return md5(sprintf('sitetree-export-%s', $id));
     }
 
@@ -97,6 +79,7 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
 
     public function process(): void
     {
+        $currentMember = Security::getCurrentUser();
         if ($this->memberID) {
             $member = Member::get()->byID($this->memberID);
 
@@ -108,13 +91,14 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest = $this->exportRequestID ? ExportRequest::get()->byID($this->exportRequestID) : null;
 
         try {
-            // The whole read+walk+timestamp-capture happens inside ONE withVersionedMode call —
-            // not just the initial page fetch — because withVersionedMode restores the prior
-            // reading mode as soon as its callback returns. Wrapping only the fetch would leave
-            // every subsequent relation read the exporter/walker performs (ElementalArea,
-            // Elements, EditableFormField, ...) running under whatever the ambient stage
-            // happened to be, silently contradicting "export reads live content only" for
-            // anything beyond the root page itself.
+            if (!$exportRequest) {
+                throw new RuntimeException(
+                    'No Export Request found for job.'
+                );
+            }
+            // The whole read+walk+timestamp-capture happens inside one withVersionedMode call
+            // because withVersionedMode restores the prior reading mode as soon as its 
+            // callback returns.
             [$file, $sourceContentTimestamp] = Versioned::withVersionedMode(function () {
                 Versioned::set_stage(Versioned::LIVE);
 
@@ -127,21 +111,19 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
                 }
 
                 $assetBundler = Injector::inst()->create(AssetBundler::class);
-                $mismatchBehaviour = SiteTreeExporter::config()->get('mismatch_behaviour');
-                $exporter = new SiteTreeExporter($assetBundler, (bool) $this->includeAssets, $mismatchBehaviour);
-                $manifest = $exporter->export($page);
+                $mismatchBehaviour = SiteTreeSerializer::config()->get('mismatch_behaviour');
+                $serializer = SiteTreeSerializer::create($assetBundler, (bool) $this->includeAssets, $mismatchBehaviour);
+                $manifest = $serializer->export($page);
                 $file = $assetBundler->writeZip($manifest, $page->URLSegment . '-export.zip');
-                $sourceContentTimestamp = (new ContentTimestampWalker())->latestTimestamp($page);
+                $sourceContentTimestamp = ContentTimestampWalker::create()->latestTimestamp($page);
 
                 return [$file, $sourceContentTimestamp];
             });
 
-            if ($exportRequest) {
-                $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
-                $exportRequest->ResultFileID = $file->ID;
-                $exportRequest->SourceContentTimestamp = (string) $sourceContentTimestamp;
-                $exportRequest->write();
-            }
+            $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
+            $exportRequest->ResultFileID = $file->ID;
+            $exportRequest->SourceContentTimestamp = (string) $sourceContentTimestamp;
+            $exportRequest->write();
 
             $this->addMessage("Exported page #{$this->pageID} successfully.");
         } catch (Throwable $e) {
@@ -155,6 +137,8 @@ class SiteTreeExportJob extends AbstractQueuedJob implements QueuedJob
             $this->isComplete = true;
 
             throw $e;
+        } finally {
+            Security::setCurrentUser($currentMember);
         }
 
         $this->isComplete = true;

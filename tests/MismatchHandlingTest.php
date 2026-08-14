@@ -3,8 +3,7 @@
 namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
-use MadeCurious\PagePacker\Serialization\SiteTreeImporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use RuntimeException;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
@@ -12,7 +11,7 @@ use SilverStripe\Dev\SapphireTest;
 /**
  * Covers what happens importing a file whose manifest references something this site doesn't
  * have — a page type that doesn't exist here, or a field that's been removed/renamed since the
- * file was exported. Both are really the same two mechanisms (SiteTreeImporter::createNode() and
+ * file was exported. Both are really the same two mechanisms (SiteTreeSerializer::createNode() and
  * ::applyScalarFields(), both funnelled through flagMismatch()) that also cover "exported from a
  * different version of this site/module" — there's no separate "check the CMS version" step;
  * drift between versions only ever shows up as one of these two structural mismatches. The one
@@ -20,7 +19,7 @@ use SilverStripe\Dev\SapphireTest;
  * unconditionally — see SiteTreeImportJobTest for that.
  *
  * Deliberately hand-builds manifests rather than round-tripping a real export: nodes are only
- * ever discovered by SiteTreeImporter::import() by appearing in the manifest's own `nodes` array
+ * ever discovered by SiteTreeSerializer::import() by appearing in the manifest's own `nodes` array
  * (see its pass-1 loop, which iterates every node unconditionally) — no real has_many/many_many
  * relation needs to actually reference a node to exercise the "unknown class" path, so a minimal,
  * explicit manifest is both sufficient and clearer than manufacturing a real relation just to
@@ -30,9 +29,9 @@ class MismatchHandlingTest extends SapphireTest
 {
     protected $usesDatabase = true;
 
-    private function importer(string $mismatchBehaviour): SiteTreeImporter
+    private function importer(string $mismatchBehaviour): SiteTreeSerializer
     {
-        return new SiteTreeImporter(new AssetBundler(), $mismatchBehaviour);
+        return new SiteTreeSerializer(new AssetBundler(), true, $mismatchBehaviour);
     }
 
     private function stub(): SiteTree
@@ -60,7 +59,7 @@ class MismatchHandlingTest extends SapphireTest
                 '1' => [
                     // Plausible stand-in for "a block type only some sites have installed" or
                     // "a class that existed in an older version of this module/site" — either
-                    // way, SiteTreeImporter has no way to distinguish those causes, and doesn't
+                    // way, SiteTreeSerializer has no way to distinguish those causes, and doesn't
                     // need to.
                     'className' => 'DNADesign\\Elemental\\Models\\ElementNoLongerInstalled',
                     'fields' => [],
@@ -77,7 +76,7 @@ class MismatchHandlingTest extends SapphireTest
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('does not exist on this site');
 
-        $this->importer(SiteTreeExporter::MISMATCH_FAIL)->import($this->stub(), $manifest);
+        $this->importer(SiteTreeSerializer::MISMATCH_FAIL)->import($this->stub(), $manifest);
     }
 
     public function testUnknownChildNodeClassUnderBestEffortModeSkipsAndWarns(): void
@@ -107,7 +106,7 @@ class MismatchHandlingTest extends SapphireTest
             'warnings' => [],
         ];
 
-        $importer = $this->importer(SiteTreeExporter::MISMATCH_BEST_EFFORT);
+        $importer = $this->importer(SiteTreeSerializer::MISMATCH_BEST_EFFORT);
         $imported = $importer->import($this->stub(), $manifest);
 
         // The root page itself still imports successfully — only the unresolvable child was
@@ -148,7 +147,7 @@ class MismatchHandlingTest extends SapphireTest
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('no longer exists on this site');
 
-        $this->importer(SiteTreeExporter::MISMATCH_FAIL)->import($this->stub(), $manifest);
+        $this->importer(SiteTreeSerializer::MISMATCH_FAIL)->import($this->stub(), $manifest);
     }
 
     public function testUnknownFieldUnderBestEffortModeSkipsAndWarns(): void
@@ -173,7 +172,7 @@ class MismatchHandlingTest extends SapphireTest
             'warnings' => [],
         ];
 
-        $importer = $this->importer(SiteTreeExporter::MISMATCH_BEST_EFFORT);
+        $importer = $this->importer(SiteTreeSerializer::MISMATCH_BEST_EFFORT);
         $imported = $importer->import($this->stub(), $manifest);
 
         // Every OTHER field on the same node still applies — one unknown field doesn't sink the

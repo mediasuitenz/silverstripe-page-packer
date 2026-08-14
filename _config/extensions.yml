@@ -3,28 +3,17 @@ Name: page-packer-extensions
 ---
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    PagePackerLockExtension: MadeCurious\PagePacker\Extensions\SiteTreeLockExtension
-    PagePackerExportExtension: MadeCurious\PagePacker\Extensions\SiteTreeExportExtension
+    - MadeCurious\PagePacker\Extensions\SiteTreeLockExtension
+    - MadeCurious\PagePacker\Extensions\SiteTreeExportExtension
 
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
-    PagePackerExportActionExtension: MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension
-    # Reaches BOTH extension points this needs (updatePageOptions()/updateDoAdd()) via a single
-    # attachment here: CMS5.4's Add-New-Page screen is the dedicated controller
-    # SilverStripe\CMS\Controllers\CMSPageAddController (extends CMSPageEditController extends
-    # CMSMain, so it inherits this) — there's no separate CMSMainAddForm class to attach to
-    # separately the way the CMS6 branch does. See CMSMainAddFormImportExtension's class doc.
-    PagePackerAddFormImportExtension: MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
-    # Supplies the link/visibility the project's CMSMain_Content.ss override needs to render the
-    # "Content Export" tab — see docs/templates/CMSMain_Content.ss and
-    # CMSMainContentExportTabExtension's own class doc.
-    PagePackerContentExportTabExtension: MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
+    - MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension
+    - MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
+    - MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
 
-# Default mismatch handling — 'fail' aborts an export/import with a clear error the moment an
-# unsupported relation shape or a class/field missing on the target site is encountered;
-# 'best_effort' skips what doesn't match and records a warning instead. Override in project
-# YAML, e.g.:
-#   MadeCurious\PagePacker\Serialization\SiteTreeExporter:
-#     mismatch_behaviour: best_effort
-MadeCurious\PagePacker\Serialization\SiteTreeExporter:
+# Mismatch handling for an unsupported relation/class/property
+# — 'fail' aborts an export/import with a clear error
+# - 'best_effort' skips what doesn't match and records a warning instead.
+MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
   mismatch_behaviour: fail

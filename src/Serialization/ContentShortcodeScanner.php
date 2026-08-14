@@ -4,15 +4,10 @@ namespace MadeCurious\PagePacker\Serialization;
 
 /**
  * Finds and rewrites File/Image references embedded as shortcodes inside HTML content field
- * values (e.g. a TinyMCE-authored `Content` or an Elemental `ElementContent.HTML` field) —
- * `[image id="123" ...]` for an inline image, `[file_link id="123" ...]` typically as an `<a>`
- * tag's href — since these are just text patterns inside a string, not a real has_one/has_many
+ * values since these are just text patterns inside a string, not a real has_one/has_many
  * relation, and so are invisible to the rest of the object-graph walk entirely.
  *
- * The two regexes mirror `SilverStripe\Assets\Shortcodes\FileLinkTrackingParser`'s own detection
- * patterns (used for the CMS's built-in broken-link reporting) rather than inventing new ones —
- * that's the framework's own canonical definition of what these shortcodes look like. This class
- * additionally rewrites the id, which FileLinkTrackingParser has no need to do.
+ * The two regexes mirror `FileLinkTrackingParser`'s own detection patterns
  */
 class ContentShortcodeScanner
 {
@@ -22,10 +17,6 @@ class ContentShortcodeScanner
 
     private const ID_ATTRIBUTE = '/\bid=(["\']?)(\d+)\1/i';
 
-    /**
-     * Field db-type specs (as returned by RelationSchema::scalarFields()) worth scanning — plain
-     * Varchar/Text fields are never TinyMCE-authored and won't contain shortcodes.
-     */
     public static function isHtmlFieldSpec(string $spec): bool
     {
         return stripos($spec, 'HTMLText') === 0

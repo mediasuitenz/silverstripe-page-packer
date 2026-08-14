@@ -7,8 +7,7 @@ use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
 use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeExporter;
-use MadeCurious\PagePacker\Serialization\SiteTreeImporter;
+use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
@@ -20,17 +19,17 @@ use SilverStripe\UserForms\Model\Submission\SubmittedFormField;
 use SilverStripe\UserForms\Model\UserDefinedForm;
 
 /**
- * Round-trip tests for SiteTreeExporter/SiteTreeImporter, calling the services directly and
+ * Round-trip tests for SiteTreeSerializer, calling the service directly and
  * synchronously (bypassing the queue entirely) so these assert field/relation parity independent
  * of queued-jobs timing — per the module's implementation plan's testing section.
  */
-class SiteTreeExporterImporterTest extends SapphireTest
+class SiteTreeSerializerTest extends SapphireTest
 {
     protected $usesDatabase = true;
 
     private function export(SiteTree $page, bool $includeAssets = true): array
     {
-        $exporter = new SiteTreeExporter(new AssetBundler(), $includeAssets);
+        $exporter = new SiteTreeSerializer(new AssetBundler(), $includeAssets);
 
         return $exporter->export($page);
     }
@@ -49,7 +48,7 @@ class SiteTreeExporterImporterTest extends SapphireTest
         $targetClass = $manifest['nodes'][$manifest['rootLocalId']]['className'];
         $record = $stub->newClassInstance($targetClass);
 
-        $importer = new SiteTreeImporter(new AssetBundler());
+        $importer = new SiteTreeSerializer(new AssetBundler());
 
         return $importer->import($record, $manifest);
     }
@@ -189,7 +188,7 @@ class SiteTreeExporterImporterTest extends SapphireTest
         // materializeAsset() would have no embedded bytes to fall back on at all (its
         // openZipPath is only ever set by readZip()), the one thing this test needs to exercise.
         $exportAssetBundler = new AssetBundler();
-        $exporterForZip = new SiteTreeExporter($exportAssetBundler, true);
+        $exporterForZip = new SiteTreeSerializer($exportAssetBundler, true);
         $manifest = $exporterForZip->export($page);
         $zipFile = $exportAssetBundler->writeZip($manifest, 'shortcode-test.zip');
 
@@ -201,7 +200,7 @@ class SiteTreeExporterImporterTest extends SapphireTest
         $stub = SiteTree::create();
         $stub->write();
         $record = $stub->newClassInstance($manifestFromZip['nodes'][$manifestFromZip['rootLocalId']]['className']);
-        $importer = new SiteTreeImporter($importAssetBundler);
+        $importer = new SiteTreeSerializer($importAssetBundler);
         $imported = $importer->import($record, $manifestFromZip);
 
         $this->assertStringNotContainsString(

@@ -12,20 +12,7 @@ use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 use Symbiote\QueuedJobs\Services\QueuedJob;
 
 /**
- * Locks a SiteTree record while an export or import job for it is in flight, ported from
- * andrewandante/silverstripe-async-publisher's signature + canEdit/canPublish veto pattern —
- * with two fixes made for this module's use case (see the module's implementation plan for the
- * full research trail):
- *
- * 1. The pending-job status filter includes STATUS_RUN. The original pattern's list
- *    (NEW/INIT/WAIT) omits it, but QueuedJobService::runJob() sets exactly that status for the
- *    entire duration a job is actively executing — the highest-risk window to leave unlocked.
- *
- * 2. Export locking reuses the original ID+ClassName signature formula (safe: a read-only
- *    export never changes the source page's class). Import locking uses an ID-only signature
- *    (see SiteTreeImportJob::getSignature()) because the stub record's ClassName changes
- *    mid-job via newClassInstance() — a signature that embeds ClassName would stop matching the
- *    running job's QueuedJobDescriptor row at exactly the point the lock matters most.
+ * Locks a SiteTree record while an export or import job for it is in flight
  */
 class SiteTreeLockExtension extends Extension
 {
@@ -55,7 +42,7 @@ class SiteTreeLockExtension extends Extension
 
         $message = _t(
             self::class . '.LOCKED_WARNING',
-            'This page is currently being exported/imported by MadeCurious PagePacker.'
+            'This page is currently being exported/imported by PagePacker.'
             . ' Please try again in a minute or so.'
         );
         $fields->addFieldToTab(
