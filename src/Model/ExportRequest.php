@@ -145,7 +145,7 @@ class ExportRequest extends DataObject
     {
         return $this->isStale()
             ? '<span class="badge badge-warning">' . _t(self::class . '.STALE', 'Stale') . '</span>'
-            : '<span class="badge badge-good">' . _t(self::class . '.FRESH', 'Fresh') . '</span>';
+            : '<span class="badge badge-success">' . _t(self::class . '.FRESH', 'Fresh') . '</span>';
     }
 
     public function getDownloadLinkHtml(): string
