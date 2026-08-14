@@ -1,0 +1,19 @@
+---
+Name: page-packer-extensions
+---
+SilverStripe\CMS\Model\SiteTree:
+  extensions:
+    - MadeCurious\PagePacker\Extensions\SiteTreeLockExtension
+    - MadeCurious\PagePacker\Extensions\SiteTreeExportExtension
+
+SilverStripe\CMS\Controllers\CMSMain:
+  extensions:
+    - MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension
+    - MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
+    - MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
+
+# Mismatch handling for an unsupported relation/class/property
+# — 'fail' aborts an export/import with a clear error
+# - 'best_effort' skips what doesn't match and records a warning instead.
+MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
+  mismatch_behaviour: fail
