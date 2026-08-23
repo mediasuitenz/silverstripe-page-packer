@@ -62,7 +62,7 @@ class ExportRequest extends DataObject
         'Origin' => 'Origin',
         'Status' => 'Status',
         'Member.Title' => 'Requested by',
-        'IncludeAssets.Nice' => 'Assets included',
+        'IncludeAssets' => 'Assets included',
         'StaleBadge' => 'Stale',
         'DownloadLinkHtml' => 'File',
     ];
