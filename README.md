@@ -29,6 +29,8 @@ composer require madecurious/silverstripe-page-packer
 
 ## Usage
 
+See the [full documention](docs/README.md) for more information, but in short:
+
 **Export**: open a page in the CMS, click the **More options** (⋯) menu next to Save/Publish,
 then **Export** — a modal lets you choose whether to include referenced files/images and add a
 short description, then queues the export as a background job. The page's "Content Export" tab

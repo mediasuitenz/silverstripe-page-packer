@@ -42,6 +42,7 @@ class CMSPageContentExportController extends CMSMain
             $config->getComponentByType(GridFieldDataColumns::class)->setFieldFormatting([
                 'StaleBadge' => fn ($value, $item) => $item->StaleBadge,
                 'DownloadLinkHtml' => fn ($value, $item) => $item->DownloadLinkHtml,
+                'IncludeAssets' => fn ($value, $item) => $item->IncludeAssets ? 'Yes' : 'No',
             ]);
 
             $fields = FieldList::create(
