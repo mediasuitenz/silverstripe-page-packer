@@ -5,8 +5,8 @@ namespace MadeCurious\PagePacker\Controllers;
 use MadeCurious\PagePacker\Extensions\PackableExtension;
 use MadeCurious\PagePacker\Jobs\RecordExportJob;
 use MadeCurious\PagePacker\Jobs\RecordImportJob;
-use MadeCurious\PagePacker\Model\RecordExportRequest;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Support\ExportQueuer;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
@@ -107,18 +107,7 @@ class RecordPackerController extends Controller
         $includeAssets = !empty($data['IncludeAssets']);
         $description = trim((string) ($data['Description'] ?? ''));
 
-        $exportRequest = RecordExportRequest::create();
-        $exportRequest->RecordID = $record->ID;
-        $exportRequest->RecordClass = get_class($record);
-        $exportRequest->MemberID = Security::getCurrentUser() ? Security::getCurrentUser()->ID : null;
-        $exportRequest->Status = RecordExportRequest::STATUS_QUEUED;
-        $exportRequest->Origin = RecordExportRequest::ORIGIN_EXPORT;
-        $exportRequest->Description = $description;
-        $exportRequest->IncludeAssets = $includeAssets;
-        $exportRequest->write();
-
-        $job = new RecordExportJob($record, $includeAssets, $exportRequest->ID);
-        QueuedJobService::singleton()->queueJob($job);
+        ExportQueuer::queue($record, RecordExportJob::class, $includeAssets, $description);
 
         $message = _t(
             self::class . '.QUEUED_FOR_EXPORT',

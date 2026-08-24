@@ -2,10 +2,10 @@
 
 namespace MadeCurious\PagePacker\Jobs;
 
-use MadeCurious\PagePacker\Model\RecordExportRequest;
+use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
+use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use RuntimeException;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DataObject;
@@ -17,15 +17,11 @@ use Symbiote\QueuedJobs\Services\QueuedJob;
 use Throwable;
 
 /**
- * The generic, any-DataObject equivalent of {@see SiteTreeExportJob} — reads a single record's
- * current content and produces a downloadable export zip, for records packed via
- * {@see \MadeCurious\PagePacker\Extensions\PackableExtension} rather than through the SiteTree
- * page tree.
+ * Reads a single record's current content and produces a downloadable export zip. Works for any
+ * DataObject — {@see SiteTreeExportJob} is a thin subclass used for SiteTree pages specifically
+ * (see its own doc comment for the little that's actually different).
  *
- * Reuses {@see SiteTreeSerializer} directly rather than duplicating it — see that class's own
- * doc comment: despite the name, it already walks any DataObject's has_one/has_many/many_many
- * graph generically. The one thing that genuinely differs from SiteTreeExportJob is staging: this
- * only engages Versioned's LIVE mode when the target record's class is actually versioned — an
+ * Only engages Versioned's LIVE mode when the target record's class is actually versioned — an
  * ordinary, unversioned DataObject (e.g. a catalogue/config record edited via a plain GridField)
  * has no draft/live distinction to switch between at all, so its current content simply IS what
  * gets exported.
@@ -73,18 +69,27 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
 
     public static function signatureForRecord(DataObject $record): string
     {
-        return self::signatureForIdAndClass((int) $record->ID, get_class($record));
+        return static::signatureForIdAndClass((int) $record->ID, get_class($record));
     }
 
     public static function signatureForRecordId(int $id): string
     {
         // Class-agnostic fallback, used only when no ClassName is available at all
-        return md5(sprintf('record-export-%s', $id));
+        return md5(sprintf('%s-%s', static::signaturePrefix(), $id));
     }
 
     private static function signatureForIdAndClass(int $id, string $className): string
     {
-        return md5(sprintf('record-export-%s-%s', $id, $className));
+        return md5(sprintf('%s-%s-%s', static::signaturePrefix(), $id, $className));
+    }
+
+    /**
+     * Overridden by SiteTreeExportJob so a page's signature stays namespaced separately from a
+     * generic record's, even though both otherwise compute the same way.
+     */
+    protected static function signaturePrefix(): string
+    {
+        return 'record-export';
     }
 
     public function process(): void
@@ -99,7 +104,7 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
             }
         }
 
-        $exportRequest = $this->exportRequestID ? RecordExportRequest::get()->byID($this->exportRequestID) : null;
+        $exportRequest = $this->exportRequestID ? ExportRequest::get()->byID($this->exportRequestID) : null;
 
         try {
             if (!$exportRequest) {
@@ -123,7 +128,7 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
                 }
 
                 $assetBundler = Injector::inst()->create(AssetBundler::class);
-                $serializer = SiteTreeSerializer::create($assetBundler, $includeAssets);
+                $serializer = RecordSerializer::create($assetBundler, $includeAssets);
                 $manifest = $serializer->export($record);
                 $file = $assetBundler->writeZip($manifest, $this->exportFilenameFor($record));
                 $sourceContentTimestamp = ContentTimestampWalker::create()->latestTimestamp($record);
@@ -142,7 +147,7 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
                 })
                 : $read();
 
-            $exportRequest->Status = RecordExportRequest::STATUS_COMPLETE;
+            $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
             $exportRequest->ResultFileID = $file->ID;
             $exportRequest->SourceContentTimestamp = (string) $sourceContentTimestamp;
             $exportRequest->write();
@@ -150,7 +155,7 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
             $this->addMessage("Exported record #{$this->recordID} successfully.");
         } catch (Throwable $e) {
             if ($exportRequest) {
-                $exportRequest->Status = RecordExportRequest::STATUS_FAILED;
+                $exportRequest->Status = ExportRequest::STATUS_FAILED;
                 $exportRequest->StatusMessage = $e->getMessage();
                 $exportRequest->write();
             }

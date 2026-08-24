@@ -13,14 +13,22 @@ use SilverStripe\Security\Permission;
 use SilverStripe\Versioned\Versioned;
 
 /**
- * Tracks one export bundle for a page — either an actual export job's output (Origin=Export) or
- * the file originally uploaded to create the page via import (Origin=Import, registered as that
- * page's first history entry so an author has an immediate downloadable snapshot of what was
- * imported without needing to trigger a fresh export first).
+ * Tracks one export bundle for a record — either an actual export job's output (Origin=Export)
+ * or the file originally uploaded to create the record via import (Origin=Import, registered as
+ * that record's first history entry so an author has an immediate downloadable snapshot of what
+ * was imported without needing to trigger a fresh export first).
  *
- * Shown as a history list on the page's Content Export tab (newest first) by
- * {@see \MadeCurious\PagePacker\Extensions\SiteTreeExportExtension}, each with a
- * download link once Status=Complete and a badge indicating staleness
+ * One shared table serves both the SiteTree/CMSMain flow and the generic DataObject/GridField
+ * flow — `Record` is declared against the bare `DataObject::class`, which SilverStripe treats as
+ * a polymorphic has_one (it adds a companion `RecordClass` column alongside `RecordID`), so this
+ * one model works for a page just as well as it does for any other project DataObject with
+ * {@see \MadeCurious\PagePacker\Extensions\PackableExtension} applied.
+ *
+ * Shown as a history list — the page's Content Export tab for a SiteTree page (via
+ * {@see \MadeCurious\PagePacker\Extensions\SiteTreeExportExtension}/
+ * `CMSPageContentExportController`), or the record's own edit form for anything else (via
+ * {@see \MadeCurious\PagePacker\Extensions\PackableExtension}) — newest first, each with a
+ * download link once Status=Complete and a badge indicating staleness.
  */
 class ExportRequest extends DataObject
 {
@@ -36,7 +44,7 @@ class ExportRequest extends DataObject
     private static $db = [
         'Status' => "Enum('Queued,Complete,Failed','Queued')",
         'Origin' => "Enum('Export,Import','Export')",
-        // The most recent LastEdited found across the page and everything it owns (see
+        // The most recent LastEdited found across the record and everything it owns (see
         // ContentTimestampWalker) at capture time
         'SourceContentTimestamp' => 'Varchar(32)',
         'StatusMessage' => 'Text',
@@ -45,7 +53,7 @@ class ExportRequest extends DataObject
     ];
 
     private static $has_one = [
-        'Page' => SiteTree::class,
+        'Record' => DataObject::class,
         'Member' => Member::class,
         'ResultFile' => File::class,
     ];
@@ -75,9 +83,15 @@ class ExportRequest extends DataObject
         'DownloadLinkHtml' => 'HTMLFragment',
     ];
 
+    /**
+     * SITETREE_IMPORT_EXPORT for a SiteTree page's history, RECORD_IMPORT_EXPORT for anything
+     * else — the two permissions stay independently grantable (see
+     * ImportExportPermissions::RECORD_IMPORT_EXPORT's own doc comment) even though they now share
+     * one model/table.
+     */
     public function canView($member = null)
     {
-        return Permission::checkMember($member, ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        return Permission::checkMember($member, $this->permissionCode());
     }
 
     public function canCreate($member = null, $context = [])
@@ -95,34 +109,68 @@ class ExportRequest extends DataObject
         return $this->canView($member);
     }
 
+    private function permissionCode(): string
+    {
+        $class = $this->RecordClass;
+
+        return ($class && is_a($class, SiteTree::class, true))
+            ? ImportExportPermissions::SITETREE_IMPORT_EXPORT
+            : ImportExportPermissions::RECORD_IMPORT_EXPORT;
+    }
+
     /**
-     * Compares SourceContentTimestamp against a fresh walk of the page's current live content
+     * Compares SourceContentTimestamp against a fresh walk of the record's current content.
+     * Only reads through the LIVE stage when the record's class is actually versioned — an
+     * ordinary, unversioned DataObject (e.g. a catalogue/config record edited via a plain
+     * GridField) has no draft/live distinction at all, so its current content simply IS what
+     * would be exported.
      */
     public function isStale(): bool
     {
-        if (!$this->PageID) {
+        if (!$this->RecordID || !$this->RecordClass) {
             return false;
         }
 
-        $currentTimestamp = Versioned::withVersionedMode(function () {
-            Versioned::set_stage(Versioned::LIVE);
-            $livePage = SiteTree::get()->byID($this->PageID);
-
-            return $livePage ? (new ContentTimestampWalker())->latestTimestamp($livePage) : null;
-        });
+        $currentTimestamp = $this->latestRecordTimestamp();
 
         if ($currentTimestamp === null) {
-            // Never published (or since unpublished)
+            // Never published/created (or since removed)
             return false;
         }
 
         if ($this->SourceContentTimestamp === '' || $this->SourceContentTimestamp === null) {
-            // Origin=Import: no live content at creation time; anything live existing now
-            // means a publish has happened since
+            // Origin=Import: no content captured at creation time; anything existing now means
+            // a publish/edit has happened since
             return true;
         }
 
         return $currentTimestamp > $this->SourceContentTimestamp;
+    }
+
+    private function latestRecordTimestamp(): ?string
+    {
+        $class = $this->RecordClass;
+
+        if (!$class || !class_exists($class) || !is_a($class, DataObject::class, true)) {
+            return null;
+        }
+
+        $recordID = (int) $this->RecordID;
+        $walk = function () use ($class, $recordID): ?string {
+            $record = $class::get()->byID($recordID);
+
+            return $record ? (new ContentTimestampWalker())->latestTimestamp($record) : null;
+        };
+
+        if (!DataObject::singleton($class)->hasExtension(Versioned::class)) {
+            return $walk();
+        }
+
+        return Versioned::withVersionedMode(function () use ($walk) {
+            Versioned::set_stage(Versioned::LIVE);
+
+            return $walk();
+        });
     }
 
     public function getDownloadLink(): ?string

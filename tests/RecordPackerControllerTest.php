@@ -5,10 +5,10 @@ namespace MadeCurious\PagePacker\Tests;
 use MadeCurious\PagePacker\Controllers\RecordPackerController;
 use MadeCurious\PagePacker\Jobs\RecordExportJob;
 use MadeCurious\PagePacker\Jobs\RecordImportJob;
-use MadeCurious\PagePacker\Model\RecordExportRequest;
+use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
+use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use MadeCurious\PagePacker\Tests\Fixtures\TestCatalogue;
 use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
 use SilverStripe\Control\HTTPRequest;
@@ -43,7 +43,7 @@ class RecordPackerControllerTest extends SapphireTest
         return $controller;
     }
 
-    public function testDoExportQueuesAJobAndCreatesARecordExportRequest(): void
+    public function testDoExportQueuesAJobAndCreatesAnExportRequest(): void
     {
         $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
 
@@ -63,13 +63,13 @@ class RecordPackerControllerTest extends SapphireTest
         $this->assertSame(302, $response->getStatusCode());
         $this->assertStringContainsString('page-packer-toast=', $response->getHeader('Location'));
 
-        $exportRequest = RecordExportRequest::get()->filter([
+        $exportRequest = ExportRequest::get()->filter([
             'RecordID' => $catalogue->ID,
             'RecordClass' => TestCatalogue::class,
         ])->first();
         $this->assertNotNull($exportRequest);
         $this->assertSame('Before the redesign', $exportRequest->Description);
-        $this->assertSame(RecordExportRequest::STATUS_QUEUED, $exportRequest->Status);
+        $this->assertSame(ExportRequest::STATUS_QUEUED, $exportRequest->Status);
 
         $this->assertTrue(QueuedJobDescriptor::get()->filter([
             'Implementation' => RecordExportJob::class,
@@ -121,7 +121,7 @@ class RecordPackerControllerTest extends SapphireTest
         $catalogue->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true);
+        $exporter = new RecordSerializer($assetBundler, true);
         $manifest = $exporter->export($catalogue);
         $file = $assetBundler->writeZip($manifest, 'catalogue-export.zip');
 
@@ -145,7 +145,7 @@ class RecordPackerControllerTest extends SapphireTest
         $product->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true);
+        $exporter = new RecordSerializer($assetBundler, true);
         $manifest = $exporter->export($product);
         $file = $assetBundler->writeZip($manifest, 'product-export.zip');
 
@@ -172,7 +172,7 @@ class RecordPackerControllerTest extends SapphireTest
         $source->write();
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
-        $exporter = new SiteTreeSerializer($assetBundler, true);
+        $exporter = new RecordSerializer($assetBundler, true);
         $manifest = $exporter->export($source);
         $file = $assetBundler->writeZip($manifest, 'catalogue-export.zip');
 

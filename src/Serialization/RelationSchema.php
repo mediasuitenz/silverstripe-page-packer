@@ -9,7 +9,7 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DataObjectSchema;
 
 /**
- * Shared relation/field classification rules used by {@see SiteTreeSerializer}'s export and
+ * Shared relation/field classification rules used by {@see RecordSerializer}'s export and
  * import directions, so the two stay in lockstep about what counts as a plain scalar
  * field, an asset relation, an in-scope object-graph relation, or something to leave alone.
  */

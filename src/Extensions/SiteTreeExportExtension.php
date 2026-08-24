@@ -3,82 +3,54 @@
 namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
-use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use SilverStripe\Control\Controller;
-use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
+use SilverStripe\Forms\Form;
 use SilverStripe\Forms\LiteralField;
-use SilverStripe\Security\Permission;
-use SilverStripe\View\Requirements;
 
 /**
- * Adds the "Export" button and Export Requests Gridfield
+ * The SiteTree-specific instance of {@see PackableExtension} — same "Export" trigger/modal
+ * mechanics, but hosted on whichever CMSMain-derived controller is currently rendering the page
+ * (via {@see \MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension}'s own
+ * `ExportModalForm`/`doExport`, using the page's `PageID`) rather than the generic
+ * {@see \MadeCurious\PagePacker\Controllers\RecordPackerController}, and placed inside the
+ * `ActionMenus.MoreOptions` popup next to Save/Publish/Unpublish/Rollback rather than pushed
+ * flat onto the action bar.
  */
-class SiteTreeExportExtension extends Extension
+class SiteTreeExportExtension extends PackableExtension
 {
-
-    private static $has_many = [
-        'ExportRequests' => ExportRequest::class,
-    ];
-
-
-    public function updateCMSFields(FieldList $fields): void
+    public function exportPermissionCode(): string
     {
-        // hide the export requests default
-        $fields->removeByName('ExportRequests');
+        return ImportExportPermissions::SITETREE_IMPORT_EXPORT;
     }
 
-    /**
-     * Adds a plain button carrying the whole modal as a `data-modal` HTML string
-     */
-    public function updateCMSActions(FieldList $actions): void
+    public function lockExtensionClass(): string
     {
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
-            return;
-        }
+        return SiteTreeLockExtension::class;
+    }
 
-        if (!$this->owner->exists()) {
-            return;
-        }
+    public function exportJobClass(): string
+    {
+        return SiteTreeExportJob::class;
+    }
 
-        Requirements::javascript('madecurious/silverstripe-page-packer: client/dist/js/export-modal.js');
-
-        $locked = $this->owner->hasExtension(SiteTreeLockExtension::class)
-            && $this->owner->pendingJobExists([SiteTreeExportJob::class]);
-
-        // Hide the button while an export for this page is already in flight    
-        if ($locked) {
-            return;
-        }
-
+    protected function getExportModalForm(): ?Form
+    {
         $controller = Controller::curr();
 
         if (!$controller || !$controller->hasMethod('ExportModalForm')) {
-            return;
+            return null;
         }
 
-        $modalId = 'SiteTreeExportModal';
         $form = $controller->ExportModalForm();
         $form->Fields()->dataFieldByName('PageID')->setValue($this->owner->ID);
 
-        $modalHtml = '<div id="' . $modalId . '" class="modal fade" tabindex="-1" role="dialog">'
-            . '<div class="modal-dialog" role="document"><div class="modal-content">'
-            . '<div class="modal-header"><h2 class="modal-title">'
-            . htmlspecialchars((string) _t(self::class . '.MODAL_TITLE', 'Export page'))
-            . '</h2><button type="button" class="btn btn-close btn--icon-xl btn--no-text modal__close-button" '
-            . 'data-dismiss="modal" aria-label="Close" title="Close">'
-            . '<span class="btn__icon font-icon-cancel" aria-hidden="true"></span></button></div>'
-            . '<div class="modal-body">' . $form->forTemplate() . '</div>'
-            . '</div></div></div>';
+        return $form;
+    }
 
-        $triggerHtml = '<button type="button" class="btn btn-secondary font-icon-share" '
-            . 'data-toggle="modal" data-target="#' . $modalId . '" '
-            . 'data-modal="' . htmlspecialchars($modalHtml, ENT_QUOTES) . '">'
-            . htmlspecialchars((string) _t(self::class . '.EXPORT_BUTTON', 'Export')) . '</button>';
-
-        $trigger = LiteralField::create('SiteTreeExportModalTrigger', $triggerHtml);
-
+    protected function placeExportTrigger(FieldList $actions, LiteralField $trigger): void
+    {
         $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
 
         if ($moreOptions) {
@@ -88,5 +60,4 @@ class SiteTreeExportExtension extends Extension
             $actions->push($trigger);
         }
     }
-
 }

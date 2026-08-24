@@ -12,13 +12,14 @@ use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 use Symbiote\QueuedJobs\Services\QueuedJob;
 
 /**
- * The generic, any-DataObject equivalent of {@see SiteTreeLockExtension} — locks a project
- * DataObject (one with {@see PackableExtension} applied) while a {@see RecordExportJob} or
- * {@see RecordImportJob} for it is in flight.
+ * Locks a DataObject (one with {@see PackableExtension} applied, or a SiteTree page — see
+ * {@see SiteTreeLockExtension}) while an export or import job for it is in flight.
  *
- * A deliberately independent, near-identical class rather than a shared base with
- * SiteTreeLockExtension, so the SiteTree/CMSMain lock behaviour this was generalised from stays
- * completely untouched.
+ * The job classes to check against, and the locked-record warning's wording, are both
+ * overridable ({@see exportJobClass()}/{@see importJobClass()}/{@see lockedWarningMessage()}) —
+ * SiteTreeLockExtension overrides all three to point at SiteTreeExportJob/SiteTreeImportJob and
+ * restore the original page-specific wording, since a page's queued job is literally an instance
+ * of that subclass, not this class's own default pair.
  */
 class RecordLockExtension extends Extension
 {
@@ -46,18 +47,13 @@ class RecordLockExtension extends Extension
             return;
         }
 
-        $message = _t(
-            self::class . '.LOCKED_WARNING',
-            'This record is currently being exported/imported by PagePacker.'
-            . ' Please try again in a minute or so.'
-        );
         $warning = LiteralField::create(
             'PagePackerLockedWarning',
-            '<div class="alert alert-warning">' . nl2br($message ?? '') . '</div>'
+            '<div class="alert alert-warning">' . nl2br($this->lockedWarningMessage() ?? '') . '</div>'
         );
 
         // A plain DataObject's scaffolded fields aren't guaranteed to be a TabSet the way
-        // SiteTree's always are (see SiteTreeLockExtension), so fall back to a flat unshift().
+        // SiteTree's always are, so fall back to a flat unshift().
         if ($fields->hasTabSet()) {
             $fields->addFieldToTab('Root.Main', $warning);
         } else {
@@ -70,27 +66,56 @@ class RecordLockExtension extends Extension
      *     (e.g. a GridField's own export button only needs to dedupe against export jobs, not
      *     import jobs) can narrow this.
      */
-    public function pendingJobExists(array $jobClasses = [RecordExportJob::class, RecordImportJob::class]): bool
+    public function pendingJobExists(?array $jobClasses = null): bool
     {
+        $jobClasses ??= [$this->exportJobClass(), $this->importJobClass()];
+
         if (!$this->owner->exists()) {
             return false;
         }
 
-        if (in_array(RecordExportJob::class, $jobClasses, true) && $this->pendingJobMatches(
-            [RecordExportJob::class],
-            RecordExportJob::signatureForRecord($this->owner)
+        $exportJobClass = $this->exportJobClass();
+        $importJobClass = $this->importJobClass();
+
+        if (in_array($exportJobClass, $jobClasses, true) && $this->pendingJobMatches(
+            [$exportJobClass],
+            $exportJobClass::signatureForRecord($this->owner)
         )) {
             return true;
         }
 
-        if (in_array(RecordImportJob::class, $jobClasses, true) && $this->pendingJobMatches(
-            [RecordImportJob::class],
-            RecordImportJob::signatureForRecordId((int) $this->owner->ID)
+        if (in_array($importJobClass, $jobClasses, true) && $this->pendingJobMatches(
+            [$importJobClass],
+            $importJobClass::signatureForRecordId((int) $this->owner->ID)
         )) {
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * The job class whose signatureForRecord() this checks by default — overridden by
+     * SiteTreeLockExtension to SiteTreeExportJob, since that (not this class's own
+     * RecordExportJob) is what actually gets queued for a page.
+     */
+    public function exportJobClass(): string
+    {
+        return RecordExportJob::class;
+    }
+
+    public function importJobClass(): string
+    {
+        return RecordImportJob::class;
+    }
+
+    protected function lockedWarningMessage(): string
+    {
+        return (string) _t(
+            self::class . '.LOCKED_WARNING',
+            'This record is currently being exported/imported by PagePacker.'
+            . ' Please try again in a minute or so.'
+        );
     }
 
     private function pendingJobMatches(array $jobClasses, string $signature): bool

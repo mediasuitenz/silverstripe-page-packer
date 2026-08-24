@@ -5,7 +5,6 @@ namespace MadeCurious\PagePacker\Extensions;
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;

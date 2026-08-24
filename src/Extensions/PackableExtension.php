@@ -4,43 +4,45 @@ namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Controllers\RecordPackerController;
 use MadeCurious\PagePacker\Jobs\RecordExportJob;
-use MadeCurious\PagePacker\Model\RecordExportRequest;
+use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Support\ModalMarkup;
 use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
+use SilverStripe\Forms\Form;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Security\Permission;
 use SilverStripe\View\Requirements;
 
 /**
- * The generic, any-DataObject equivalent of {@see SiteTreeExportExtension} — apply this, plus
- * {@see RecordLockExtension}, to a project DataObject to get the same "Export" button and export
- * history a SiteTree page gets out of the box.
+ * Apply this (plus {@see RecordLockExtension}) to a project DataObject to get an "Export"
+ * button + export history — the same capability a SiteTree page gets via
+ * {@see SiteTreeExportExtension}, which extends this class rather than duplicating it.
  *
  * Two hosting contexts are supported:
  * - A record with its own LeftAndMain-style getCMSActions() (rare for a plain DataObject, but
- *   the same shape SiteTree/CMSMain uses) gets the trigger via updateCMSActions() below, exactly
- *   like SiteTreeExportExtension.
- * - A record edited through an ordinary GridField (the common case — see docs) instead gets it
- *   via {@see GridFieldRecordActionsExtension}, which calls addExportTrigger() directly, because
- *   GridFieldDetailForm_ItemRequest builds its action bar itself and never calls
- *   DataObject::getCMSActions() at all.
+ *   the same shape SiteTree/CMSMain uses) gets the trigger via updateCMSActions() below.
+ * - A record edited through an ordinary GridField (the common case — see the developer guide)
+ *   instead gets it via {@see GridFieldRecordActionsExtension}, which calls addExportTrigger()
+ *   directly, because GridFieldDetailForm_ItemRequest builds its action bar itself and never
+ *   calls DataObject::getCMSActions() at all.
  *
- * A deliberately independent class from SiteTreeExportExtension (rather than reusing/subclassing
- * it) so the SiteTree/CMSMain export flow this was generalised from is completely unaffected —
- * see also RecordExportRequest's class doc for why export history is tracked in its own table
- * rather than widening ExportRequest itself.
+ * Everything about *how* the trigger is gated/built is overridable via the protected/public
+ * hook methods below — SiteTreeExportExtension overrides them to host the form on CMSMain
+ * instead of {@see RecordPackerController}, place the trigger inside
+ * `ActionMenus.MoreOptions` instead of pushing it flat, and check the SiteTree-specific
+ * permission/lock/job classes.
  */
 class PackableExtension extends Extension
 {
     private static $has_many = [
-        'ExportRequests' => RecordExportRequest::class,
+        'ExportRequests' => ExportRequest::class,
     ];
 
     public function updateCMSFields(FieldList $fields): void
     {
-        // hide the export requests default — same reasoning as SiteTreeExportExtension: an
-        // editor sees this history through the module's own UI, not the raw scaffolded relation.
+        // hide the export requests default — an editor sees this history through the module's
+        // own UI, not the raw scaffolded relation.
         $fields->removeByName('ExportRequests');
     }
 
@@ -51,16 +53,16 @@ class PackableExtension extends Extension
 
     /**
      * Builds the "Export" trigger button (carrying the whole modal as a `data-modal` HTML
-     * string, same technique as SiteTreeExportExtension) and pushes it onto $actions — unless
-     * the current member lacks permission, the record hasn't been saved yet, or an export/import
-     * for it is already in flight.
+     * string) and places it onto $actions — unless the current member lacks permission, the
+     * record hasn't been saved yet, an export/import for it is already in flight, or (for a
+     * SiteTree page) no CMSMain-hosted form is available to build.
      *
      * Public (rather than folded into updateCMSActions()) so GridFieldRecordActionsExtension can
      * call it directly against the same extension instance already attached to the record.
      */
     public function addExportTrigger(FieldList $actions): void
     {
-        if (!Permission::check(ImportExportPermissions::RECORD_IMPORT_EXPORT)) {
+        if (!Permission::check($this->exportPermissionCode())) {
             return;
         }
 
@@ -68,10 +70,16 @@ class PackableExtension extends Extension
             return;
         }
 
-        $locked = $this->owner->hasExtension(RecordLockExtension::class)
-            && $this->owner->pendingJobExists([RecordExportJob::class]);
+        $locked = $this->owner->hasExtension($this->lockExtensionClass())
+            && $this->owner->pendingJobExists([$this->exportJobClass()]);
 
         if ($locked) {
+            return;
+        }
+
+        $form = $this->getExportModalForm();
+
+        if (!$form) {
             return;
         }
 
@@ -79,28 +87,75 @@ class PackableExtension extends Extension
         // data-toggle="modal"/data-modal), nothing SiteTree-specific about it.
         Requirements::javascript('madecurious/silverstripe-page-packer: client/dist/js/export-modal.js');
 
-        $controller = RecordPackerController::singleton();
-
         $modalId = 'PackerExportModal' . $this->owner->ID;
-        $form = $controller->ExportModalForm();
+        $modalHtml = ModalMarkup::modal(
+            $modalId,
+            (string) _t(self::class . '.MODAL_TITLE', 'Export record'),
+            $form->forTemplate()
+        );
+        $trigger = LiteralField::create(
+            'PackerExportModalTrigger',
+            ModalMarkup::trigger(
+                $modalId,
+                (string) _t(self::class . '.EXPORT_BUTTON', 'Export'),
+                'font-icon-share',
+                $modalHtml
+            )
+        );
+
+        $this->placeExportTrigger($actions, $trigger);
+    }
+
+    /**
+     * Which permission gates this record's export/import. Overridden by SiteTreeExportExtension
+     * to SITETREE_IMPORT_EXPORT.
+     */
+    public function exportPermissionCode(): string
+    {
+        return ImportExportPermissions::RECORD_IMPORT_EXPORT;
+    }
+
+    /**
+     * Which lock extension (and therefore which job classes) governs whether this record is
+     * currently mid-export/import. Overridden by SiteTreeExportExtension to
+     * SiteTreeLockExtension.
+     */
+    public function lockExtensionClass(): string
+    {
+        return RecordLockExtension::class;
+    }
+
+    /**
+     * Which job class actually gets queued for this record's export. Overridden by
+     * SiteTreeExportExtension to SiteTreeExportJob.
+     */
+    public function exportJobClass(): string
+    {
+        return RecordExportJob::class;
+    }
+
+    /**
+     * Builds and pre-populates the export modal's form. The generic implementation always hosts
+     * it on {@see RecordPackerController}'s own fixed route; SiteTreeExportExtension overrides
+     * this to reuse CMSMain's own hosted form instead (see CMSMainExportActionExtension),
+     * returning null if no such controller is currently available to host it.
+     */
+    protected function getExportModalForm(): ?Form
+    {
+        $form = RecordPackerController::singleton()->ExportModalForm();
         $form->Fields()->dataFieldByName('RecordClassName')->setValue(get_class($this->owner));
         $form->Fields()->dataFieldByName('RecordID')->setValue($this->owner->ID);
 
-        $modalHtml = '<div id="' . $modalId . '" class="modal fade" tabindex="-1" role="dialog">'
-            . '<div class="modal-dialog" role="document"><div class="modal-content">'
-            . '<div class="modal-header"><h2 class="modal-title">'
-            . htmlspecialchars((string) _t(self::class . '.MODAL_TITLE', 'Export record'))
-            . '</h2><button type="button" class="btn btn-close btn--icon-xl btn--no-text modal__close-button" '
-            . 'data-dismiss="modal" aria-label="Close" title="Close">'
-            . '<span class="btn__icon font-icon-cancel" aria-hidden="true"></span></button></div>'
-            . '<div class="modal-body">' . $form->forTemplate() . '</div>'
-            . '</div></div></div>';
+        return $form;
+    }
 
-        $triggerHtml = '<button type="button" class="btn btn-secondary font-icon-share" '
-            . 'data-toggle="modal" data-target="#' . $modalId . '" '
-            . 'data-modal="' . htmlspecialchars($modalHtml, ENT_QUOTES) . '">'
-            . htmlspecialchars((string) _t(self::class . '.EXPORT_BUTTON', 'Export')) . '</button>';
-
-        $actions->push(LiteralField::create('PackerExportModalTrigger', $triggerHtml));
+    /**
+     * Where the trigger lands in $actions. The generic implementation just pushes it onto the
+     * end; SiteTreeExportExtension overrides this to push into `ActionMenus.MoreOptions`
+     * instead, alongside SiteTree's own Unpublish/Rollback actions.
+     */
+    protected function placeExportTrigger(FieldList $actions, LiteralField $trigger): void
+    {
+        $actions->push($trigger);
     }
 }

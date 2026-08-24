@@ -3,7 +3,7 @@
 namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Jobs\RecordImportJob;
-use MadeCurious\PagePacker\Model\RecordExportRequest;
+use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Tests\Fixtures\TestCatalogue;
 use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
@@ -71,13 +71,13 @@ class RecordImportJobTest extends SapphireTest
         $this->assertNotNull($caught);
         $this->assertStringContainsString('is not a record type that exists on this site', $caught->getMessage());
 
-        $failedRequest = RecordExportRequest::get()->filter([
+        $failedRequest = ExportRequest::get()->filter([
             'RecordID' => $stub->ID,
             'RecordClass' => TestCatalogue::class,
-            'Origin' => RecordExportRequest::ORIGIN_IMPORT,
-            'Status' => RecordExportRequest::STATUS_FAILED,
+            'Origin' => ExportRequest::ORIGIN_IMPORT,
+            'Status' => ExportRequest::STATUS_FAILED,
         ])->first();
-        $this->assertNotNull($failedRequest, 'A Failed RecordExportRequest entry must be recorded for the stub.');
+        $this->assertNotNull($failedRequest, 'A Failed ExportRequest entry must be recorded for the stub.');
     }
 
     public function testRootClassBelongingToADifferentGridFieldFails(): void

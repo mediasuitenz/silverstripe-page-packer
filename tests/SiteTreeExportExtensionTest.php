@@ -65,14 +65,14 @@ class SiteTreeExportExtensionTest extends SapphireTest
         }
 
         $this->assertNull(
-            $actions->fieldByName('SiteTreeExportModalTrigger'),
+            $actions->fieldByName('PackerExportModalTrigger'),
             'The export trigger must not sit in the top-level action bar.'
         );
 
         $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
         $this->assertNotNull($moreOptions, 'Expected the ActionMenus.MoreOptions tab to exist.');
         $this->assertNotNull(
-            $moreOptions->fieldByName('SiteTreeExportModalTrigger'),
+            $moreOptions->fieldByName('PackerExportModalTrigger'),
             'The export trigger must be inside the More options popup.'
         );
     }

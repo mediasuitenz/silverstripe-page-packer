@@ -9,21 +9,28 @@ use SilverStripe\Core\Injector\Injectable;
 use SilverStripe\ORM\DataObject;
 
 /**
- * Exports a single SiteTree page into a flat, serializable node graph, and reverses that same 
- * graph back into real SiteTrees on import.
+ * Exports a single DataObject — a SiteTree page, or any other project DataObject with
+ * {@see \MadeCurious\PagePacker\Extensions\PackableExtension} applied — into a flat,
+ * serializable node graph, and reverses that same graph back into real records on import.
+ * Despite living in a module that started out page-only, nothing in here is SiteTree-specific:
+ * it walks whatever `$has_one`/`$has_many`/`$many_many` {@see RelationSchema} says belongs to the
+ * root record's class, recursively, regardless of what that class is. Both the SiteTree/CMSMain
+ * flow ({@see \MadeCurious\PagePacker\Jobs\SiteTreeExportJob}/`SiteTreeImportJob`) and the
+ * generic DataObject/GridField flow ({@see \MadeCurious\PagePacker\Jobs\RecordExportJob}/
+ * `RecordImportJob`) share this one engine.
  *
  * Export phase 1 ({@see discover()}) walks has_many/many_many to build every node and record its
  * has_one targets as raw {class, id} pairs; phase 2 ({@see resolveReferences()}) converts those
- * raw pairs into local-ID references now that the full node set is known. 
- * 
- * Import mirrors this; * pass 1 ({@see import()}'s own loop plus {@see createNode()}) creates 
- * every node (scalar fields only) so every local ID maps to a real record; pass 2 
+ * raw pairs into local-ID references now that the full node set is known.
+ *
+ * Import mirrors this; * pass 1 ({@see import()}'s own loop plus {@see createNode()}) creates
+ * every node (scalar fields only) so every local ID maps to a real record; pass 2
  * ({@see applyRelations()}) resolves has_one (incl. polymorphic + asset) relations and many_many
  * associations through that local-ID map.
  *
  * File/Image has_one relations are handled separately via {@see AssetBundler}
  */
-class SiteTreeSerializer
+class RecordSerializer
 {
     use Injectable;
     use Configurable;
@@ -359,7 +366,7 @@ class SiteTreeSerializer
         $class = $node['className'] ?? '';
 
         if (!is_a($class, DataObject::class, true)) {
-            $this->flagMismatch("Page type \"{$class}\" does not exist on this site; its content was skipped.");
+            $this->flagMismatch("Class \"{$class}\" does not exist on this site; its content was skipped.");
 
             return null;
         }

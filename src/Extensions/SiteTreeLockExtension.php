@@ -4,101 +4,32 @@ namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use SilverStripe\Control\Director;
-use SilverStripe\Core\Extension;
-use SilverStripe\Forms\FieldList;
-use SilverStripe\Forms\LiteralField;
-use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
-use Symbiote\QueuedJobs\Services\QueuedJob;
 
 /**
- * Locks a SiteTree record while an export or import job for it is in flight
+ * The SiteTree-specific instance of {@see RecordLockExtension} — same canEdit()/canPublish()
+ * veto and locked-fields warning, just pointed at SiteTreeExportJob/SiteTreeImportJob (the job
+ * classes actually queued for a page — see CMSMainExportActionExtension/
+ * CMSMainAddFormImportExtension) instead of the base's own RecordExportJob/RecordImportJob, and
+ * with the original page-specific wording restored.
  */
-class SiteTreeLockExtension extends Extension
+class SiteTreeLockExtension extends RecordLockExtension
 {
-    public function canEdit($member = null)
+    public function exportJobClass(): string
     {
-        if (!Director::is_cli() && $this->pendingJobExists()) {
-            return false;
-        }
-
-        return null;
+        return SiteTreeExportJob::class;
     }
 
-    public function canPublish($member = null)
+    public function importJobClass(): string
     {
-        if (!Director::is_cli() && $this->pendingJobExists()) {
-            return false;
-        }
-
-        return null;
+        return SiteTreeImportJob::class;
     }
 
-    public function updateCMSFields(FieldList $fields): void
+    protected function lockedWarningMessage(): string
     {
-        if (!$this->pendingJobExists()) {
-            return;
-        }
-
-        $message = _t(
+        return (string) _t(
             self::class . '.LOCKED_WARNING',
             'This page is currently being exported/imported by PagePacker.'
             . ' Please try again in a minute or so.'
         );
-        $fields->addFieldToTab(
-            'Root.Main',
-            LiteralField::create(
-                'PagePackerLockedWarning',
-                '<div class="alert alert-warning">' . nl2br($message ?? '') . '</div>'
-            ),
-            'Title'
-        );
-    }
-
-    public function updateSettingsFields(FieldList $fields): void
-    {
-        $this->updateCMSFields($fields);
-    }
-
-    /**
-     * @param string[] $jobClasses Defaults to both job classes; callers that only care about one
-     *     (e.g. the Settings tab export button only needs to dedupe against export jobs, not
-     *     import jobs, since a page being exported is never also mid-import) can narrow this.
-     */
-    public function pendingJobExists(array $jobClasses = [SiteTreeExportJob::class, SiteTreeImportJob::class]): bool
-    {
-        if (!$this->owner->exists()) {
-            return false;
-        }
-
-        if (in_array(SiteTreeExportJob::class, $jobClasses, true) && $this->pendingJobMatches(
-            [SiteTreeExportJob::class],
-            SiteTreeExportJob::signatureForRecord($this->owner)
-        )) {
-            return true;
-        }
-
-        if (in_array(SiteTreeImportJob::class, $jobClasses, true) && $this->pendingJobMatches(
-            [SiteTreeImportJob::class],
-            SiteTreeImportJob::signatureForRecordId((int) $this->owner->ID)
-        )) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private function pendingJobMatches(array $jobClasses, string $signature): bool
-    {
-        return QueuedJobDescriptor::get()->filter([
-            'Implementation' => $jobClasses,
-            'Signature' => $signature,
-            'JobStatus' => [
-                QueuedJob::STATUS_NEW,
-                QueuedJob::STATUS_INIT,
-                QueuedJob::STATUS_RUN,
-                QueuedJob::STATUS_WAIT,
-            ],
-        ])->exists();
     }
 }

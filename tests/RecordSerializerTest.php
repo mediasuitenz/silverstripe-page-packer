@@ -7,7 +7,7 @@ use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
 use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
+use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
@@ -19,17 +19,19 @@ use SilverStripe\UserForms\Model\Submission\SubmittedFormField;
 use SilverStripe\UserForms\Model\UserDefinedForm;
 
 /**
- * Round-trip tests for SiteTreeSerializer, calling the service directly and
+ * Round-trip tests for RecordSerializer, calling the service directly and
  * synchronously (bypassing the queue entirely) so these assert field/relation parity independent
- * of queued-jobs timing — per the module's implementation plan's testing section.
+ * of queued-jobs timing. These specifically exercise SiteTree/Elemental/Userforms-shaped content
+ * — see GenericDataObjectRoundTripTest for the equivalent proof against a plain, non-page
+ * DataObject.
  */
-class SiteTreeSerializerTest extends SapphireTest
+class RecordSerializerTest extends SapphireTest
 {
     protected $usesDatabase = true;
 
     private function export(SiteTree $page, bool $includeAssets = true): array
     {
-        $exporter = new SiteTreeSerializer(new AssetBundler(), $includeAssets);
+        $exporter = new RecordSerializer(new AssetBundler(), $includeAssets);
 
         return $exporter->export($page);
     }
@@ -48,7 +50,7 @@ class SiteTreeSerializerTest extends SapphireTest
         $targetClass = $manifest['nodes'][$manifest['rootLocalId']]['className'];
         $record = $stub->newClassInstance($targetClass);
 
-        $importer = new SiteTreeSerializer(new AssetBundler());
+        $importer = new RecordSerializer(new AssetBundler());
 
         return $importer->import($record, $manifest);
     }
@@ -142,7 +144,8 @@ class SiteTreeSerializerTest extends SapphireTest
         $page->write();
 
         $previousExport = ExportRequest::create([
-            'PageID' => $page->ID,
+            'RecordID' => $page->ID,
+            'RecordClass' => SiteTree::class,
             'Origin' => ExportRequest::ORIGIN_EXPORT,
             'Description' => 'An earlier export',
         ]);
@@ -188,7 +191,7 @@ class SiteTreeSerializerTest extends SapphireTest
         // materializeAsset() would have no embedded bytes to fall back on at all (its
         // openZipPath is only ever set by readZip()), the one thing this test needs to exercise.
         $exportAssetBundler = new AssetBundler();
-        $exporterForZip = new SiteTreeSerializer($exportAssetBundler, true);
+        $exporterForZip = new RecordSerializer($exportAssetBundler, true);
         $manifest = $exporterForZip->export($page);
         $zipFile = $exportAssetBundler->writeZip($manifest, 'shortcode-test.zip');
 
@@ -200,7 +203,7 @@ class SiteTreeSerializerTest extends SapphireTest
         $stub = SiteTree::create();
         $stub->write();
         $record = $stub->newClassInstance($manifestFromZip['nodes'][$manifestFromZip['rootLocalId']]['className']);
-        $importer = new SiteTreeSerializer($importAssetBundler);
+        $importer = new RecordSerializer($importAssetBundler);
         $imported = $importer->import($record, $manifestFromZip);
 
         $this->assertStringNotContainsString(

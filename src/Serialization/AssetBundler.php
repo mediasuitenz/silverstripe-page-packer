@@ -11,7 +11,7 @@ use ZipArchive;
 
 /**
  * Builds/reads the module's export container: a single .zip with `manifest.json` (the node graph
- * from {@see SiteTreeSerializer}) plus an optional `assets/<hash>/<name>`
+ * from {@see RecordSerializer}) plus an optional `assets/<hash>/<name>`
  * entry per referenced File/Image. Always a zip regardless of the "include assets" toggle, so
  * the CMS upload control always expects one consistent extension.
  */

@@ -50,9 +50,11 @@ Security in the CMS.
 
 ## Using it on your own DataObject
 
-Everything above is enabled on `SiteTree` out of the box. The same packing/unpacking capability
-is also available for any project `DataObject` — typically one edited through an ordinary
-GridField, not the page tree. Apply both extensions to it:
+Everything above (`SiteTreeExportExtension`, `SiteTreeLockExtension`, `SiteTreeExportJob`,
+`SiteTreeImportJob`) is a thin, SiteTree-specific subclass of a generic base
+(`PackableExtension`, `RecordLockExtension`, `RecordExportJob`, `RecordImportJob`) that works on
+any project `DataObject` — typically one edited through an ordinary GridField rather than the
+page tree. Apply the two base extensions to it:
 
 ```yaml
 App\Model\Catalogue: # any DataObject, not SiteTree
@@ -65,15 +67,20 @@ This gets you the same "Export" button + export history the page tree gets, wher
 `getCMSFields()`/edit form is rendered — including inside a GridField's detail form, which is
 wired up globally already (see the developer guide for why that needed its own extend point).
 
-To also let editors create a **new** record in a GridField by uploading a previously exported
-file (the GridField equivalent of the page tree's "Add new page" import option), add
-`GridFieldRecordImportButton` to that GridField's config:
+Two further, opt-in GridField components round out the GridField-specific UI — add either or
+both to a `GridFieldConfig`:
 
 ```php
+use MadeCurious\PagePacker\Forms\GridField\GridFieldRecordExportAction;
 use MadeCurious\PagePacker\Forms\GridField\GridFieldRecordImportButton;
 
 GridFieldConfig_RecordEditor::create()
-    ->addComponent(new GridFieldRecordImportButton());
+    // "Import" toolbar button — the GridField equivalent of the page tree's "Add new page"
+    // import option, creating a new record in this GridField from an uploaded file.
+    ->addComponent(new GridFieldRecordImportButton())
+    // Optional one-click "Export" action per row, alongside GridFieldDeleteAction etc. — an
+    // alternative to opening a record's detail view just to click its own Export button.
+    ->addComponent(new GridFieldRecordExportAction());
 ```
 
 This path uses its own permission, `RECORD_IMPORT_EXPORT`, kept separate from
@@ -84,7 +91,7 @@ flow, what's independent, and why).
 ## Configuration
 
 ```yaml
-MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
+MadeCurious\PagePacker\Serialization\RecordSerializer:
   # 'fail' (default): abort with a clear error the moment an unsupported relation shape or a
   # class/field missing on the target site is encountered. 'best_effort': skip what doesn't
   # match and record a warning instead.

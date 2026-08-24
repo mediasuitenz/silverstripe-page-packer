@@ -4,8 +4,8 @@ namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Controllers\CMSPageContentExportController;
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
-use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Support\ExportQueuer;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Core\Extension;
@@ -15,10 +15,8 @@ use SilverStripe\Forms\Form;
 use SilverStripe\Forms\FormAction;
 use SilverStripe\Forms\HiddenField;
 use SilverStripe\Forms\TextField;
-use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Permission;
 use SilverStripe\Security\Security;
-use Symbiote\QueuedJobs\Services\QueuedJobService;
 
 /**
  * Builds the export modal's form and handles its submission.
@@ -73,17 +71,7 @@ class CMSMainExportActionExtension extends Extension
         $includeAssets = !empty($data['IncludeAssets']);
         $description = trim((string) ($data['Description'] ?? ''));
 
-        $exportRequest = ExportRequest::create();
-        $exportRequest->PageID = $record->ID;
-        $exportRequest->MemberID = Security::getCurrentUser() ? Security::getCurrentUser()->ID : null;
-        $exportRequest->Status = ExportRequest::STATUS_QUEUED;
-        $exportRequest->Origin = ExportRequest::ORIGIN_EXPORT;
-        $exportRequest->Description = $description;
-        $exportRequest->IncludeAssets = $includeAssets;
-        $exportRequest->write();
-
-        $job = new SiteTreeExportJob($record, $includeAssets, $exportRequest->ID);
-        QueuedJobService::singleton()->queueJob($job);
+        ExportQueuer::queue($record, SiteTreeExportJob::class, $includeAssets, $description);
 
         $message = _t(
             self::class . '.QUEUED_FOR_EXPORT',

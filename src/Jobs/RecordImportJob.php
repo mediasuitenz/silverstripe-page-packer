@@ -2,9 +2,9 @@
 
 namespace MadeCurious\PagePacker\Jobs;
 
-use MadeCurious\PagePacker\Model\RecordExportRequest;
+use MadeCurious\PagePacker\Model\ExportRequest;
 use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
+use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use RuntimeException;
 use SilverStripe\Assets\File;
 use SilverStripe\ORM\DataObject;
@@ -16,16 +16,17 @@ use Symbiote\QueuedJobs\Services\QueuedJob;
 use Throwable;
 
 /**
- * The generic, any-DataObject equivalent of {@see SiteTreeImportJob} — populates a stub record
- * from an uploaded export zip then runs {@see SiteTreeSerializer}'s two-pass import against it.
+ * Populates a stub record from an uploaded export zip then runs {@see RecordSerializer}'s
+ * two-pass import against it. Works for any DataObject — {@see SiteTreeImportJob} is a thin
+ * subclass used for SiteTree pages specifically (see its own doc comment for the little that's
+ * actually different).
  *
- * Unlike the page-tree "Add new page" flow (where the stub starts life as a bare, un-typed
- * SiteTree, since the editor is choosing "import" INSTEAD OF picking a page type up front), a
- * project DataObject is always imported into a specific, already-known class — the model class
- * of whichever GridField the import was triggered from (see GridFieldRecordImportButton) — so
- * the stub here is already created as that exact class. This job only reclasses it if the
- * manifest's root node turns out to be a MORE SPECIFIC subclass of the stub's class (mirroring
- * newClassInstance() as used by the page-tree flow), and fails outright if the manifest's root
+ * The stub is expected to already be the exact class this import should produce, or a
+ * superclass of it — e.g. the model class of whichever GridField the import was triggered from
+ * (see GridFieldRecordImportButton), or (for the page tree) a bare, un-typed SiteTree, since the
+ * editor there is choosing "import" INSTEAD OF picking a page type up front. This job only
+ * reclasses the stub if the manifest's root node turns out to be a MORE SPECIFIC subclass of the
+ * stub's current class (mirroring newClassInstance()), and fails outright if the manifest's root
  * class isn't the stub's class or a subclass of it — there's no reasonable way to import, say,
  * an exported Product into a Catalogue GridField.
  */
@@ -60,7 +61,7 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
 
     public function getSignature(): string
     {
-        return self::signatureForRecordId((int) $this->stubID);
+        return static::signatureForRecordId((int) $this->stubID);
     }
 
     /**
@@ -68,7 +69,25 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
      */
     public static function signatureForRecordId(int $id): string
     {
-        return md5(sprintf('record-import-%s', $id));
+        return md5(sprintf('%s-%s', static::signaturePrefix(), $id));
+    }
+
+    /**
+     * Overridden by SiteTreeImportJob so a page's signature stays namespaced separately from a
+     * generic record's, even though both otherwise compute the same way.
+     */
+    protected static function signaturePrefix(): string
+    {
+        return 'record-import';
+    }
+
+    /**
+     * The word used for "class" in this job's own error messages — overridden by
+     * SiteTreeImportJob to restore the original "page type" wording.
+     */
+    protected static function rootClassLabel(): string
+    {
+        return 'record type';
     }
 
     public function process(): void
@@ -138,7 +157,8 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
         // A completely unresolvable root class has no reasonable "best effort" partial import
         if (!$targetClass || !class_exists($targetClass) || !is_a($targetClass, DataObject::class, true)) {
             throw new RuntimeException(
-                "\"{$targetClass}\" is not a record type that exists on this site; the file cannot be imported."
+                "\"{$targetClass}\" is not a " . static::rootClassLabel()
+                . ' that exists on this site; the file cannot be imported.'
             );
         }
 
@@ -153,19 +173,19 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
 
         $record = $targetClass === $stubClass ? $stub : $stub->newClassInstance($targetClass);
 
-        $serializer = SiteTreeSerializer::create($assetBundler, true);
+        $serializer = RecordSerializer::create($assetBundler, true);
         $serializer->import($record, $manifest);
 
         foreach ($serializer->warnings() as $warning) {
             $this->addMessage($warning, 'WARNING');
         }
 
-        $exportRequest = RecordExportRequest::create();
+        $exportRequest = ExportRequest::create();
         $exportRequest->RecordID = $record->ID;
         $exportRequest->RecordClass = get_class($record);
         $exportRequest->MemberID = $this->memberID;
-        $exportRequest->Status = RecordExportRequest::STATUS_COMPLETE;
-        $exportRequest->Origin = RecordExportRequest::ORIGIN_IMPORT;
+        $exportRequest->Status = ExportRequest::STATUS_COMPLETE;
+        $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->ResultFileID = $uploadedFile->ID;
         $exportRequest->IncludeAssets = $assetBundler->hasEmbeddedAssets($manifest);
         $exportRequest->write();
@@ -175,9 +195,7 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
 
     /**
      * On failure, the stub is deliberately kept (not deleted) and, if it has a Title field,
-     * re-titled to surface the error directly when an editor opens it — mirrors
-     * SiteTreeImportJob::failStub() exactly, generalised for a stub class that may not have a
-     * Title field at all.
+     * re-titled to surface the error directly when an editor opens it.
      */
     private function failStub(Throwable $e): void
     {
@@ -198,12 +216,12 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
             $stub->write();
         }
 
-        $exportRequest = RecordExportRequest::create();
+        $exportRequest = ExportRequest::create();
         $exportRequest->RecordID = $stub->ID;
         $exportRequest->RecordClass = get_class($stub);
         $exportRequest->MemberID = $this->memberID;
-        $exportRequest->Status = RecordExportRequest::STATUS_FAILED;
-        $exportRequest->Origin = RecordExportRequest::ORIGIN_IMPORT;
+        $exportRequest->Status = ExportRequest::STATUS_FAILED;
+        $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->StatusMessage = $e->getMessage();
         $exportRequest->ResultFileID = $this->uploadedFileID;
         $exportRequest->write();
