@@ -258,6 +258,53 @@ kitchen-sink style page along with it.
     upload field to gain a file ID, then fetches the `importPreview` endpoint and renders
     the preview table on the Add-New-Page screen.
 
+### Generic DataObject/GridField support
+
+Everything above is the SiteTree/CMSMain flow, and it is completely unchanged by this section —
+it's described here purely to show what's shared vs. independent. A second, parallel set of
+classes generalises the same capability to any project `DataObject`, typically one edited
+through an ordinary GridField rather than the page tree:
+
+| Class | Applied to / used by | Responsibility |
+|---|---|---|
+| `PackableExtension` | Any project `DataObject` (opt-in via YAML) | The `RecordExportRequest` has_many equivalent of `SiteTreeExportExtension`; also exposes `addExportTrigger(FieldList $actions)` publicly so it can be invoked from a context other than `getCMSActions()` |
+| `RecordLockExtension` | Any project `DataObject` (opt-in via YAML) | The `SiteTreeLockExtension` equivalent — same signature-based locking, against `RecordExportJob`/`RecordImportJob` |
+| `GridFieldRecordActionsExtension` | `GridFieldDetailForm_ItemRequest` (applied globally, no-op for non-packable records) | Calls `$record->extend('addExportTrigger', $actions)` from `updateFormActions()` — the one extend point `GridFieldDetailForm_ItemRequest` actually fires, since it builds its own action bar and never calls `DataObject::getCMSActions()` at all |
+| `GridFieldRecordImportButton` | Any `GridFieldConfig`, opt-in per-GridField | The GridField/DataObject equivalent of `CMSMainAddFormImportExtension`'s "Add new page" upload option |
+| `RecordPackerController` | Its own route (`_config/routes.yml`, `page-packer/…`) | The equivalent of `CMSMainExportActionExtension` + `CMSMainAddFormImportExtension`'s server-side actions, but hosted independently rather than attached to CMSMain — there's no single admin controller every packable DataObject is guaranteed to share the way pages share CMSMain |
+| `RecordExportRequest` | — (Model) | The polymorphic (`Record` has_one against bare `DataObject::class`, giving `RecordID`+`RecordClass`) equivalent of `ExportRequest` — a **separate table**, not a widened `ExportRequest`, precisely so the SiteTree flow's schema/behaviour is untouched |
+| `RecordExportJob` / `RecordImportJob` | — (Jobs) | The equivalent of `SiteTreeExportJob`/`SiteTreeImportJob`, DataObject-typed instead of SiteTree-typed, and Versioned-aware rather than Versioned-assuming (see below) |
+
+Two things this generalisation had to solve that the SiteTree flow never needed to:
+
+- **No guaranteed Versioned staging.** `SiteTreeExportJob`/`SiteTreeImportJob` unconditionally
+  wrap their work in `Versioned::withVersionedMode()` because every `SiteTree` is versioned by
+  definition. A project `DataObject` usually isn't (there's no "draft" for a Catalogue), so
+  `RecordExportJob`/`RecordImportJob` check `hasExtension(Versioned::class)` first and only
+  engage staging when the target class actually has it — for an unversioned class, its current
+  content simply *is* what gets exported/imported, no stage-switching involved.
+- **No dedicated "Add new" screen to piggyback on.** The page tree already has one screen
+  (`CMSMainAddFormImportExtension` hooks it) where "import instead of picking a type" makes
+  sense. A GridField has no equivalent, so `GridFieldRecordImportButton` is a normal, opt-in
+  GridField component instead, and — since there's no single class the uploaded file could be
+  (unlike the page tree, where any SiteTree subclass is fair game) — `RecordImportJob` requires
+  the manifest's root class to be the GridField's own model class or a subclass of it, rejecting
+  anything else with a clear error rather than silently reclassing to something unrelated.
+
+Reuses rather than re-implements: `SiteTreeSerializer`, `RelationSchema`, `AssetBundler`, and
+`ContentShortcodeScanner` are all already `DataObject`-generic internally (see each class's own
+doc comment) — none of them changed for this. `client/dist/js/export-modal.js` is reused as-is
+for the same reason (its modal open/close logic was never SiteTree-specific); only the import
+*preview* widget needed a generalised sibling (`record-import-preview.js`), since the original
+hard-coded a single upload field name/container id for the one page-tree screen it was written
+for.
+
+Kept deliberately separate rather than merged into the SiteTree classes: the permission
+(`RECORD_IMPORT_EXPORT`, not `SITETREE_IMPORT_EXPORT`), the history table (`RecordExportRequest`,
+not `ExportRequest`), and the lock/export extensions — so a site can grant/apply the two flows
+independently, and so this whole generalisation is additive: nothing under `Extensions/`,
+`Jobs/`, `Model/`, or `Controllers/` with a `SiteTree`/`CMSMain` name changed behaviour.
+
 ## Data flow summary
 
 ```
@@ -271,6 +318,17 @@ Import:  uploaded zip ──AssetBundler──▶ read manifest.json + assets
                        ──SiteTreeSerializer──▶ reconstruct DataObjects (mismatch_behaviour applies)
          SiteTreeImportJob writes onto the DRAFT stage of the stub SiteTree,
          updates ExportRequest → Complete (or Failed)
+
+Generic (any packable DataObject) — same shape, different job/model pair and no guaranteed stage:
+
+Export:  record (current content) ──RelationSchema──▶ walk owned relations
+                                   ──SiteTreeSerializer──▶ manifest.json ──AssetBundler──▶ zip
+         RecordExportJob writes the zip to a File, updates RecordExportRequest → Complete
+
+Import:  uploaded zip ──AssetBundler──▶ read manifest.json + assets
+                       ──SiteTreeSerializer──▶ reconstruct DataObjects (mismatch_behaviour applies)
+         RecordImportJob writes onto the stub (reclassed only if the manifest's root is a
+         subclass of it), updates RecordExportRequest → Complete (or Failed)
 ```
 
 ## Testing
@@ -294,6 +352,19 @@ All tests are `SapphireTest`-based with `$usesDatabase = true`:
 | `SiteTreeExportExtensionTest.php` | UI placement / tab-scaffolding regressions |
 | `SiteTreeLockExtensionTest.php` | Job-in-flight locking behaviour |
 | `CMSMainAddFormImportExtensionTest.php` | The `importPreview` JSON endpoint |
+| `GenericDataObjectRoundTripTest.php` | Proves the core engine round-trips a genuinely non-page, unversioned `DataObject` and its owned `has_many` children (see `tests/Fixtures/`) |
+| `PackableExtensionTest.php` | The generic export trigger — mirrors `SiteTreeExportExtensionTest` for a plain DataObject |
+| `RecordLockExtensionTest.php` | The generic locking behaviour — mirrors `SiteTreeLockExtensionTest` |
+| `RecordImportJobTest.php` | Root-class mismatch is always fatal, *plus* the "wrong GridField" mismatch case that has no SiteTree analogue |
+| `RecordExportRequestTest.php` | Stale/fresh detection against the polymorphic `Record` relation and an unversioned owner |
+| `GridFieldRecordActionsExtensionTest.php` | The export trigger actually appearing on a GridField-edited record (not just a `getCMSActions()`-based one) |
+| `GridFieldRecordImportButtonTest.php` | The opt-in GridField import button's packable/permission gating |
+| `RecordPackerControllerTest.php` | `doExport`/`doImport`/`importPreview` on the standalone controller |
+
+`tests/Fixtures/TestCatalogue.php` + `TestProduct.php` are a deliberately plain, unversioned,
+non-SiteTree `DataObject` pair (with `PackableExtension`/`RecordLockExtension` applied directly
+via `private static $extensions`) used across all of the above — standing in for a real project
+model like this module's own README example.
 
 `squizlabs/php_codesniffer` (`^3.7`) is a dev dependency for coding-standards checks; there
 is no `composer test`/`composer cs` script defined, so run `vendor/bin/phpunit` and
@@ -311,3 +382,10 @@ is no `composer test`/`composer cs` script defined, so run `vendor/bin/phpunit` 
   the target site's page class list must include whatever class the export's manifest
   names, or the import will still create a page but as a bare `SiteTree` with none of the
   original class's fields/blocks populated.
+- **The generic DataObject path is opt-in, per class** — `PackableExtension`/
+  `RecordLockExtension` only ever do anything once applied via YAML; `GridFieldRecordImportButton`
+  only ever does anything once added to a specific `GridFieldConfig`. Nothing here scans for or
+  auto-enables itself against project DataObjects.
+- **A GridField import is scoped to that GridField's own model class** — see
+  `RecordImportJob`'s mismatch rule above; there is no "import creates whatever class the file
+  says" behaviour outside the page tree.

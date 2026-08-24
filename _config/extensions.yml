@@ -15,5 +15,15 @@ SilverStripe\CMS\Controllers\CMSMain:
 # Mismatch handling for an unsupported relation/class/property
 # — 'fail' aborts an export/import with a clear error
 # - 'best_effort' skips what doesn't match and records a warning instead.
+# Shared by both the SiteTree/CMSMain flow above and the generic DataObject flow below — both
+# ultimately serialize through this same class (see its own doc comment).
 MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
   mismatch_behaviour: fail
+
+# --- Generic DataObject/GridField support -----------------------------------------------------
+# Apply RecordLockExtension + PackableExtension to any project DataObject (see the developer
+# guide) to get the same export/import capability SiteTree gets above, without needing the page
+# tree at all. This one is applied globally and unconditionally:
+SilverStripe\Forms\GridField\GridFieldDetailForm_ItemRequest:
+  extensions:
+    - MadeCurious\PagePacker\Extensions\GridFieldRecordActionsExtension

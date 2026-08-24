@@ -48,6 +48,39 @@ anything. Clicking **Create** then runs the import as a background job, and you 
 Both directions require the `SITETREE_IMPORT_EXPORT` permission, manageable per group under
 Security in the CMS.
 
+## Using it on your own DataObject
+
+Everything above is enabled on `SiteTree` out of the box. The same packing/unpacking capability
+is also available for any project `DataObject` — typically one edited through an ordinary
+GridField, not the page tree. Apply both extensions to it:
+
+```yaml
+App\Model\Catalogue: # any DataObject, not SiteTree
+  extensions:
+    - MadeCurious\PagePacker\Extensions\RecordLockExtension
+    - MadeCurious\PagePacker\Extensions\PackableExtension
+```
+
+This gets you the same "Export" button + export history the page tree gets, wherever the record's
+`getCMSFields()`/edit form is rendered — including inside a GridField's detail form, which is
+wired up globally already (see the developer guide for why that needed its own extend point).
+
+To also let editors create a **new** record in a GridField by uploading a previously exported
+file (the GridField equivalent of the page tree's "Add new page" import option), add
+`GridFieldRecordImportButton` to that GridField's config:
+
+```php
+use MadeCurious\PagePacker\Forms\GridField\GridFieldRecordImportButton;
+
+GridFieldConfig_RecordEditor::create()
+    ->addComponent(new GridFieldRecordImportButton());
+```
+
+This path uses its own permission, `RECORD_IMPORT_EXPORT`, kept separate from
+`SITETREE_IMPORT_EXPORT` so a group can be granted one without the other. See the
+[developer guide](docs/developer-guide.md) for the full picture (what's shared with the page-tree
+flow, what's independent, and why).
+
 ## Configuration
 
 ```yaml

@@ -1,0 +1,91 @@
+<?php
+
+namespace MadeCurious\PagePacker\Tests;
+
+use MadeCurious\PagePacker\Jobs\RecordExportJob;
+use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Tests\Fixtures\TestCatalogue;
+use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
+use SilverStripe\Dev\SapphireTest;
+use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
+use Symbiote\QueuedJobs\Services\QueuedJob;
+
+/**
+ * The generic-DataObject equivalent of SiteTreeExportExtensionTest — proves PackableExtension
+ * behaves the same way on a plain, unversioned, non-SiteTree DataObject (see TestCatalogue's own
+ * doc comment) as SiteTreeExportExtension does on a page, without needing a hosting CMSMain-style
+ * controller at all (PackableExtension's trigger always points at RecordPackerController's own
+ * fixed route — see its class doc).
+ */
+class PackableExtensionTest extends SapphireTest
+{
+    protected $usesDatabase = true;
+
+    protected static $extra_dataobjects = [
+        TestCatalogue::class,
+        TestProduct::class,
+    ];
+
+    public function testExportRequestsAutoScaffoldedTabIsRemoved(): void
+    {
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $fields = $catalogue->getCMSFields();
+
+        $this->assertNull($fields->dataFieldByName('ExportRequests'));
+    }
+
+    public function testExportTriggerAppearsForAPackableRecordWithPermission(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $actions = $catalogue->getCMSActions();
+
+        $this->assertNotNull($actions->fieldByName('PackerExportModalTrigger'));
+    }
+
+    public function testExportTriggerIsAbsentWithoutPermission(): void
+    {
+        $this->logOut();
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $actions = $catalogue->getCMSActions();
+
+        $this->assertNull($actions->fieldByName('PackerExportModalTrigger'));
+    }
+
+    public function testExportTriggerIsAbsentWhileAnExportIsInFlight(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        QueuedJobDescriptor::create([
+            'Implementation' => RecordExportJob::class,
+            'Signature' => RecordExportJob::signatureForRecord($catalogue),
+            'JobStatus' => QueuedJob::STATUS_RUN,
+        ])->write();
+
+        $actions = $catalogue->getCMSActions();
+
+        $this->assertNull($actions->fieldByName('PackerExportModalTrigger'));
+    }
+
+    public function testExportTriggerIsAbsentForAnUnsavedRecord(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'Not written yet']);
+
+        $actions = $catalogue->getCMSActions();
+
+        $this->assertNull($actions->fieldByName('PackerExportModalTrigger'));
+    }
+}
