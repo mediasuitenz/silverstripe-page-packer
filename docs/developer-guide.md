@@ -74,32 +74,43 @@ not documented as a stable public API:
 
 All PHP lives under `src/`, PSR-4-mapped to `MadeCurious\PagePacker\`.
 
-The module is built as a generic base (works on any `DataObject`) with a thin SiteTree-specific
-subclass layer on top wherever the page tree/CMSMain genuinely needs something different — not
-two parallel implementations. Each pair below is a real `extends` relationship:
+`PackableExtension` and `RecordLockExtension` are the **only** two extension classes involved in
+"does this record get an Export button + locking" — `SiteTree` uses the exact same two classes
+as any other packable DataObject, not a subclass of either. What varies between "a SiteTree
+page" and "any other packable DataObject" — which permission/job classes to check, where the
+modal form is hosted, where the trigger is placed, the locked-record wording — is captured in one
+small collaborator interface, `Support\PackingPolicy`, injected into both extensions via
+constructor. Two implementations ship: `RecordPackingPolicy` (the default) and
+`SiteTreePackingPolicy`. `_config/extensions.yml` registers both as named `Injector` service
+variants (`PackingPolicy.record` / `PackingPolicy.sitetree`) plus a default alias, and wires
+`SiteTree` up to two more named variants of the extensions themselves
+(`PackableExtension.sitetree` / `RecordLockExtension.sitetree`) that are constructed with the
+`.sitetree` policy — **exactly** the pattern `silverstripe/versioned`'s own `Versioned` extension
+uses for its Stage/StagedVersioned modes (`versioned/_config/versionedextension.yml`): one
+extension class, named Injector variants with different constructor args, a default alias. See
+`PackingPolicy`'s own class doc for the full reasoning, including why this — rather than a
+SiteTree-specific subclass of either extension — is the idiom used here.
 
-| Base (generic) | SiteTree subclass | What the subclass actually overrides |
+| Policy method | `RecordPackingPolicy` (default) | `SiteTreePackingPolicy` (`.sitetree` variant) |
 |---|---|---|
-| `PackableExtension` | `SiteTreeExportExtension` | Which permission/lock/job class to check; hosts the modal form on CMSMain (`Controller::curr()`) instead of `RecordPackerController`, using a `PageID` field instead of `RecordClassName`+`RecordID`; places the trigger inside `ActionMenus.MoreOptions` instead of pushing it flat |
-| `RecordLockExtension` | `SiteTreeLockExtension` | Which job classes to check (`SiteTreeExportJob`/`SiteTreeImportJob`, since those — not the base's own `RecordExportJob`/`RecordImportJob` — are what's actually queued for a page); the locked-record warning's wording ("page" vs "record") |
-| `RecordExportJob` | `SiteTreeExportJob` | Queued-job title text; signature namespaced under `sitetree-export-*` rather than `record-export-*` |
-| `RecordImportJob` | `SiteTreeImportJob` | Queued-job title/error text ("page type" vs "record type"); signature namespaced under `sitetree-import-*` |
+| `permissionCode()` | `RECORD_IMPORT_EXPORT` | `SITETREE_IMPORT_EXPORT` |
+| `exportJobClass()` / `importJobClass()` | `RecordExportJob` / `RecordImportJob` | `SiteTreeExportJob` / `SiteTreeImportJob` |
+| `getExportModalForm()` | Hosted on `RecordPackerController`'s own route, populates `RecordClassName`+`RecordID` | Hosted on whichever CMSMain-derived controller is rendering the page (`Controller::curr()`), populates `PageID`; returns `null` outside that context |
+| `placeExportTrigger()` | Pushed flat onto the action bar | Pushed into `ActionMenus.MoreOptions`, next to Save/Publish/Unpublish/Rollback |
+| `lockedWarningMessage()` | "This record is currently being exported/imported…" | "This page is currently being exported/imported…" |
 
-Everything else about *how* content is read/written — Versioned staging (or lack of it),
-mismatch handling, the "target class must be the stub's class or a subclass of it" reclass rule
-— lives once in the base and is inherited unchanged. See "Generalisation to any DataObject"
-below for the detail on what each override actually buys.
+The two job classes (`RecordExportJob`/`SiteTreeExportJob`, `RecordImportJob`/`SiteTreeImportJob`)
+remain a plain `extends` pair rather than another policy — see "Jobs" below for why that's a
+deliberately different call from the extensions.
 
 ### Extensions (`src/Extensions/`)
 
 | Class | Applied to | Responsibility |
 |---|---|---|
-| `PackableExtension` | Any `DataObject` (opt-in via YAML; see below) | Adds the `ExportRequests` has_many, the "Export" trigger (`addExportTrigger()`, called from `updateCMSActions()` or directly by `GridFieldRecordActionsExtension`), and hides the auto-scaffolded `ExportRequests` tab |
-| `SiteTreeExportExtension` | `SiteTree` | `PackableExtension` subclass — see the table above |
-| `RecordLockExtension` | Any `DataObject` (opt-in via YAML) | Vetoes `canEdit()`/`canPublish()` while an export/import job for that record is in flight (bypassed when `Director::is_cli()`, so the job itself can still write); injects the "currently being exported/imported" banner |
-| `SiteTreeLockExtension` | `SiteTree` | `RecordLockExtension` subclass — see the table above |
+| `PackableExtension` | Any `DataObject`, including `SiteTree` (opt-in via YAML for a project DataObject; see below) | Adds the `ExportRequests` has_many, the "Export" trigger (`addExportTrigger()`, called from `updateCMSActions()` or directly by `GridFieldRecordActionsExtension`), and hides the auto-scaffolded `ExportRequests` tab. Delegates permission/job-class/form-hosting/placement decisions to its injected `PackingPolicy` |
+| `RecordLockExtension` | Any `DataObject`, including `SiteTree` (opt-in via YAML) | Vetoes `canEdit()`/`canPublish()` while an export/import job for that record is in flight (bypassed when `Director::is_cli()`, so the job itself can still write); injects the "currently being exported/imported" banner. Also policy-driven |
 | `GridFieldRecordActionsExtension` | `GridFieldDetailForm_ItemRequest` (applied globally, no-op for non-packable records) | Calls `$record->extend('addExportTrigger', $actions)` from `updateFormActions()` — the one extend point `GridFieldDetailForm_ItemRequest` actually fires, since it builds its own action bar and never calls `DataObject::getCMSActions()` at all. Needed because a GridField-edited record never goes through `PackableExtension::updateCMSActions()` on its own |
-| `CMSMainExportActionExtension` | `CMSMain` | Builds/handles the Export modal form and its `doExport` action — what `SiteTreeExportExtension`'s trigger posts to |
+| `CMSMainExportActionExtension` | `CMSMain` | Builds/handles the Export modal form and its `doExport` action — what a SiteTree page's trigger posts to (via `SiteTreePackingPolicy::getExportModalForm()`) |
 | `CMSMainAddFormImportExtension` | `CMSMain` | Adds the upload field to Add-New-Page, the `importPreview` JSON endpoint, and hooks `updateDoAdd()` to divert page creation into a `SiteTreeImportJob` when a file was uploaded |
 | `CMSMainContentExportTabExtension` | `CMSMain` | Supplies `$LinkPageContentExport` / `$HasContentExport` to the template that renders the Content Export tab |
 
@@ -144,7 +155,14 @@ registers two permissions (category "Content"), independently assignable per Sec
 ### Jobs (`src/Jobs/`)
 
 Both export and import run as `symbiote/silverstripe-queuedjobs` jobs, not synchronous
-requests:
+requests. Unlike the two extensions above, the SiteTree jobs are a plain `extends` pair rather
+than another `PackingPolicy`-driven pair, deliberately: a queued job is serialized to the
+database as a PHP object and later unserialized to run, on its own, with no `Extensible`/
+`Injector` "current owner" context to route a policy lookup through the way an extension has —
+and the only things that actually differ (title/error text, signature prefix) are simple,
+static, per-class overrides with no runtime collaborator to inject. Ordinary inheritance is the
+right tool for that; forcing it through the same policy mechanism as the extensions would add
+indirection without buying anything:
 
 - `RecordExportJob extends AbstractQueuedJob` — reads the record's current content and writes
   the result through `AssetBundler` and `RecordSerializer`. Only engages
@@ -301,12 +319,13 @@ kitchen-sink style page along with it.
 
 ### Generalisation to any DataObject
 
-The base classes in every table above (`PackableExtension`, `RecordLockExtension`,
-`RecordExportJob`, `RecordImportJob`, the unified `ExportRequest`, `RecordSerializer`) work on
-any project `DataObject`, typically one edited through an ordinary GridField rather than the
-page tree — apply `RecordLockExtension` + `PackableExtension` to it via YAML (see the README).
-Two more, GridField-specific pieces exist only on the generic side, since the page tree has no
-equivalent need for them:
+Every class in the tables above (`PackableExtension`, `RecordLockExtension`, `RecordExportJob`,
+`RecordImportJob`, the unified `ExportRequest`, `RecordSerializer`) works on any project
+`DataObject`, typically one edited through an ordinary GridField rather than the page tree —
+apply `RecordLockExtension` + `PackableExtension` to it via YAML, with no extra configuration
+needed (see the README); the default `PackingPolicy` variant applies automatically. Two more,
+GridField-specific pieces exist only on the generic side, since the page tree has no equivalent
+need for them:
 
 | Class | Applied to / used by | Responsibility |
 |---|---|---|
@@ -358,12 +377,12 @@ open/close logic was never SiteTree-specific); only the import *preview* widget 
 generalised sibling (`record-import-preview.js`), since the original hard-coded a single upload
 field name/container id for the one page-tree screen it was written for.
 
-Kept deliberately independent rather than collapsed into a single permission/class: the two
-permissions (`SITETREE_IMPORT_EXPORT` / `RECORD_IMPORT_EXPORT`) and the SiteTree-named
-subclasses (`SiteTreeExportExtension`/`SiteTreeLockExtension`/`SiteTreeExportJob`/
-`SiteTreeImportJob`) — so a site can grant/apply the two flows independently, and a page's
-queued job/history stays identifiable as such (by class name and permission) even though the
-underlying mechanics and the `ExportRequest` table are now fully shared.
+Kept deliberately independent rather than collapsed into one permission/one job pair: the two
+permissions (`SITETREE_IMPORT_EXPORT` / `RECORD_IMPORT_EXPORT`), the two `PackingPolicy`
+implementations, and the SiteTree-named job classes (`SiteTreeExportJob`/`SiteTreeImportJob`) —
+so a site can grant/apply the two flows independently, and a page's queued job/history stays
+identifiable as such (by class name and permission) even though the underlying mechanics and the
+`ExportRequest` table are now fully shared.
 
 ## Data flow summary
 
@@ -405,8 +424,8 @@ All tests are `SapphireTest`-based with `$usesDatabase = true`:
 | `MismatchHandlingTest.php` | `fail` vs. `best_effort` mismatch behaviour |
 | `SiteTreeImportJobTest.php` | Root class mismatch is always fatal, regardless of `mismatch_behaviour` |
 | `ExportRequestTest.php` | Stale/fresh detection for both a SiteTree page (versioned, `SITETREE_IMPORT_EXPORT`) and a generic record (unversioned, `RECORD_IMPORT_EXPORT`), including nested-owned-child cases for each |
-| `SiteTreeExportExtensionTest.php` | UI placement / tab-scaffolding regressions |
-| `SiteTreeLockExtensionTest.php` | Job-in-flight locking behaviour |
+| `SiteTreeExportExtensionTest.php` | UI placement / tab-scaffolding regressions, exercising `PackableExtension` via its `.sitetree` `PackingPolicy` variant |
+| `SiteTreeLockExtensionTest.php` | Job-in-flight locking behaviour, exercising `RecordLockExtension` via its `.sitetree` variant |
 | `CMSMainAddFormImportExtensionTest.php` | The `importPreview` JSON endpoint |
 | `GenericDataObjectRoundTripTest.php` | Proves the core engine round-trips a genuinely non-page, unversioned `DataObject` and its owned `has_many` children (see `tests/Fixtures/`) |
 | `PackableExtensionTest.php` | The generic export trigger — mirrors `SiteTreeExportExtensionTest` for a plain DataObject |

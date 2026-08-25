@@ -1,10 +1,44 @@
 ---
 Name: page-packer-extensions
 ---
+# PackingPolicy supplies everything PackableExtension/RecordLockExtension need that varies
+# between "a SiteTree page" and "any other packable DataObject" (permission code, job classes,
+# where to host the export form, where the trigger is placed) — see that interface's own doc
+# comment. Two named Injector service variants, one per case, plus a default alias: exactly the
+# pattern silverstripe/versioned's own Versioned extension uses for its Stage/StagedVersioned
+# modes (versioned/_config/versionedextension.yml).
+SilverStripe\Core\Injector\Injector:
+  MadeCurious\PagePacker\Support\PackingPolicy.record:
+    class: MadeCurious\PagePacker\Support\RecordPackingPolicy
+  MadeCurious\PagePacker\Support\PackingPolicy.sitetree:
+    class: MadeCurious\PagePacker\Support\SiteTreePackingPolicy
+  # Default: any class applying PackableExtension/RecordLockExtension without requesting the
+  # .sitetree variant explicitly gets the generic policy.
+  MadeCurious\PagePacker\Support\PackingPolicy: '%$MadeCurious\PagePacker\Support\PackingPolicy.record'
+
+  # SiteTree gets the very same two extension classes as any other packable DataObject, just
+  # constructed with the .sitetree policy variant instead of the default. Named as their own
+  # service variants (rather than passing the policy inline on SiteTree's own $extensions list)
+  # so each variant gets its own Injector singleton cache entry — see PackingPolicy's doc comment
+  # for why that distinction matters.
+  MadeCurious\PagePacker\Extensions\PackableExtension.sitetree:
+    class: MadeCurious\PagePacker\Extensions\PackableExtension
+    constructor:
+      - '%$MadeCurious\PagePacker\Support\PackingPolicy.sitetree'
+  MadeCurious\PagePacker\Extensions\RecordLockExtension.sitetree:
+    class: MadeCurious\PagePacker\Extensions\RecordLockExtension
+    constructor:
+      - '%$MadeCurious\PagePacker\Support\PackingPolicy.sitetree'
+
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    - MadeCurious\PagePacker\Extensions\SiteTreeLockExtension
-    - MadeCurious\PagePacker\Extensions\SiteTreeExportExtension
+    # No leading %$: Extensible's own extension-class-existence check
+    # (Extensible::get_extra_config_sources()) parses this raw string with
+    # ClassInfo::parse_class_spec() BEFORE any %$ stripping, so a %$-prefixed whole entry gets
+    # mangled by the tokenizer and fails that check. A bare `ClassName.variant` entry resolves
+    # through Injector identically (see getExtensionInstances()) without tripping it.
+    - MadeCurious\PagePacker\Extensions\RecordLockExtension.sitetree
+    - MadeCurious\PagePacker\Extensions\PackableExtension.sitetree
 
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
@@ -23,7 +57,8 @@ MadeCurious\PagePacker\Serialization\RecordSerializer:
 # --- Generic DataObject/GridField support -----------------------------------------------------
 # Apply RecordLockExtension + PackableExtension to any project DataObject (see the developer
 # guide) to get the same export/import capability SiteTree gets above, without needing the page
-# tree at all. This one is applied globally and unconditionally:
+# tree at all — no policy variant needed, the default alias above applies. This one is applied
+# globally and unconditionally:
 SilverStripe\Forms\GridField\GridFieldDetailForm_ItemRequest:
   extensions:
     - MadeCurious\PagePacker\Extensions\GridFieldRecordActionsExtension

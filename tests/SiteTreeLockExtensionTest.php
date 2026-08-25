@@ -11,9 +11,10 @@ use Symbiote\QueuedJobs\Services\QueuedJob;
 
 /**
  * Covers the two fixes made to the ported async-publisher lock pattern (see
- * SiteTreeLockExtension's class doc): the pending-job status filter must include STATUS_RUN, and
- * import locking must key off an ID-only signature that survives the stub's ClassName changing
- * mid-job.
+ * RecordLockExtension's class doc — SiteTree applies that exact same extension, wired to the
+ * .sitetree PackingPolicy variant, see _config/extensions.yml): the pending-job status filter
+ * must include STATUS_RUN, and import locking must key off an ID-only signature that survives
+ * the stub's ClassName changing mid-job.
  */
 class SiteTreeLockExtensionTest extends SapphireTest
 {
@@ -40,7 +41,7 @@ class SiteTreeLockExtensionTest extends SapphireTest
             SiteTreeExportJob::signatureForRecord($page),
             $job->getSignature(),
             "The job's own getSignature() must match signatureForRecord(), which is what"
-            . ' SiteTreeLockExtension::pendingJobExists() queries QueuedJobDescriptor for.'
+            . ' RecordLockExtension::pendingJobExists() queries QueuedJobDescriptor for.'
         );
     }
 
@@ -61,7 +62,7 @@ class SiteTreeLockExtensionTest extends SapphireTest
 
         // pendingJobExists() is the real, environment-independent unit under test — it's what
         // canEdit()/canPublish() veto on. canEdit() itself isn't separately assertable here:
-        // SiteTreeLockExtension deliberately defers to normal permission logic under
+        // RecordLockExtension deliberately defers to normal permission logic under
         // Director::is_cli() (so a queued job never vetoes its own writes), and PHPUnit itself
         // always runs under the CLI SAPI — so canEdit() would show the same bypass regardless of
         // pendingJobExists(), not because the veto is broken, but because this test process IS

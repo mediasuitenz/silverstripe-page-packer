@@ -223,8 +223,7 @@ class ExportRequestTest extends SapphireTest
 
         // Mirrors exactly what GridFieldDeleteAction::handleAction() does server-side for the
         // 'deleterecord' action: check canDelete(), then delete() outright (not a mere
-        // remove-from-relation) — see the has_many wiring on PackableExtension/
-        // SiteTreeExportExtension.
+        // remove-from-relation) — see the has_many wiring on PackableExtension.
         $this->assertTrue((bool) $delete->canDelete());
         $delete->delete();
 

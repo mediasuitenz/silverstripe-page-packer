@@ -130,7 +130,7 @@ class CMSMainAddFormImportExtension extends Extension
             return;
         }
 
-        if (!$record instanceof DataObject || !$record->hasExtension(SiteTreeLockExtension::class)) {
+        if (!$record instanceof DataObject || !$record->hasExtension(RecordLockExtension::class)) {
             return;
         }
 

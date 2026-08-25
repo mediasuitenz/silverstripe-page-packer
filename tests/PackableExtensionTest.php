@@ -11,11 +11,12 @@ use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 use Symbiote\QueuedJobs\Services\QueuedJob;
 
 /**
- * The generic-DataObject equivalent of SiteTreeExportExtensionTest — proves PackableExtension
- * behaves the same way on a plain, unversioned, non-SiteTree DataObject (see TestCatalogue's own
- * doc comment) as SiteTreeExportExtension does on a page, without needing a hosting CMSMain-style
- * controller at all (PackableExtension's trigger always points at RecordPackerController's own
- * fixed route — see its class doc).
+ * The generic-DataObject equivalent of SiteTreeExportExtensionTest — proves PackableExtension,
+ * configured with the default RecordPackingPolicy (see PackingPolicy's class doc), behaves the
+ * same way on a plain, unversioned, non-SiteTree DataObject (see TestCatalogue's own doc
+ * comment) as it does on a SiteTree page configured with the .sitetree variant — without
+ * needing a hosting CMSMain-style controller at all (the default policy's trigger always points
+ * at RecordPackerController's own fixed route).
  */
 class PackableExtensionTest extends SapphireTest
 {

@@ -25,8 +25,8 @@ use SilverStripe\Versioned\Versioned;
  * {@see \MadeCurious\PagePacker\Extensions\PackableExtension} applied.
  *
  * Shown as a history list — the page's Content Export tab for a SiteTree page (via
- * {@see \MadeCurious\PagePacker\Extensions\SiteTreeExportExtension}/
- * `CMSPageContentExportController`), or the record's own edit form for anything else (via
+ * {@see \MadeCurious\PagePacker\Extensions\PackableExtension}/`CMSPageContentExportController`),
+ * or the record's own edit form for anything else (via
  * {@see \MadeCurious\PagePacker\Extensions\PackableExtension}) — newest first, each with a
  * download link once Status=Complete and a badge indicating staleness.
  */

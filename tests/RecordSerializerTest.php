@@ -131,7 +131,7 @@ class RecordSerializerTest extends SapphireTest
     }
 
     /**
-     * Regression test: SiteTreeExportExtension declares a real has_many from SiteTree to
+     * Regression test: PackableExtension declares a real has_many from SiteTree to
      * ExportRequest (so its history GridField can use a genuine RelationList) — without an
      * explicit exclusion, the exporter would treat that as ordinary owned content and try to
      * walk into it, recursing into ExportRequest's own Member/ResultFile relations and failing

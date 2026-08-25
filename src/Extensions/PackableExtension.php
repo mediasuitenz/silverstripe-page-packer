@@ -2,22 +2,23 @@
 
 namespace MadeCurious\PagePacker\Extensions;
 
-use MadeCurious\PagePacker\Controllers\RecordPackerController;
-use MadeCurious\PagePacker\Jobs\RecordExportJob;
 use MadeCurious\PagePacker\Model\ExportRequest;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Support\ModalMarkup;
+use MadeCurious\PagePacker\Support\PackingPolicy;
 use SilverStripe\Core\Extension;
+use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Forms\FieldList;
-use SilverStripe\Forms\Form;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Security\Permission;
 use SilverStripe\View\Requirements;
 
 /**
  * Apply this (plus {@see RecordLockExtension}) to a project DataObject to get an "Export"
- * button + export history — the same capability a SiteTree page gets via
- * {@see SiteTreeExportExtension}, which extends this class rather than duplicating it.
+ * button + export history. `SiteTree` gets exactly the same capability by applying the very
+ * same two extension classes — see this module's `_config/extensions.yml` — just wired to the
+ * `.sitetree` {@see PackingPolicy} Injector variant instead of the default one, rather than via
+ * a SiteTree-specific subclass of this class. See {@see PackingPolicy}'s own doc comment for why
+ * that's the idiom used here (it mirrors `silverstripe/versioned`'s own `Versioned` extension).
  *
  * Two hosting contexts are supported:
  * - A record with its own LeftAndMain-style getCMSActions() (rare for a plain DataObject, but
@@ -26,18 +27,21 @@ use SilverStripe\View\Requirements;
  *   instead gets it via {@see GridFieldRecordActionsExtension}, which calls addExportTrigger()
  *   directly, because GridFieldDetailForm_ItemRequest builds its action bar itself and never
  *   calls DataObject::getCMSActions() at all.
- *
- * Everything about *how* the trigger is gated/built is overridable via the protected/public
- * hook methods below — SiteTreeExportExtension overrides them to host the form on CMSMain
- * instead of {@see RecordPackerController}, place the trigger inside
- * `ActionMenus.MoreOptions` instead of pushing it flat, and check the SiteTree-specific
- * permission/lock/job classes.
  */
 class PackableExtension extends Extension
 {
     private static $has_many = [
         'ExportRequests' => ExportRequest::class,
     ];
+
+    private PackingPolicy $policy;
+
+    public function __construct(?PackingPolicy $policy = null)
+    {
+        parent::__construct();
+
+        $this->policy = $policy ?? Injector::inst()->get(PackingPolicy::class);
+    }
 
     public function updateCMSFields(FieldList $fields): void
     {
@@ -62,7 +66,7 @@ class PackableExtension extends Extension
      */
     public function addExportTrigger(FieldList $actions): void
     {
-        if (!Permission::check($this->exportPermissionCode())) {
+        if (!Permission::check($this->policy->permissionCode())) {
             return;
         }
 
@@ -70,14 +74,14 @@ class PackableExtension extends Extension
             return;
         }
 
-        $locked = $this->owner->hasExtension($this->lockExtensionClass())
-            && $this->owner->pendingJobExists([$this->exportJobClass()]);
+        $locked = $this->owner->hasExtension(RecordLockExtension::class)
+            && $this->owner->pendingJobExists([$this->policy->exportJobClass()]);
 
         if ($locked) {
             return;
         }
 
-        $form = $this->getExportModalForm();
+        $form = $this->policy->getExportModalForm($this->owner);
 
         if (!$form) {
             return;
@@ -103,59 +107,6 @@ class PackableExtension extends Extension
             )
         );
 
-        $this->placeExportTrigger($actions, $trigger);
-    }
-
-    /**
-     * Which permission gates this record's export/import. Overridden by SiteTreeExportExtension
-     * to SITETREE_IMPORT_EXPORT.
-     */
-    public function exportPermissionCode(): string
-    {
-        return ImportExportPermissions::RECORD_IMPORT_EXPORT;
-    }
-
-    /**
-     * Which lock extension (and therefore which job classes) governs whether this record is
-     * currently mid-export/import. Overridden by SiteTreeExportExtension to
-     * SiteTreeLockExtension.
-     */
-    public function lockExtensionClass(): string
-    {
-        return RecordLockExtension::class;
-    }
-
-    /**
-     * Which job class actually gets queued for this record's export. Overridden by
-     * SiteTreeExportExtension to SiteTreeExportJob.
-     */
-    public function exportJobClass(): string
-    {
-        return RecordExportJob::class;
-    }
-
-    /**
-     * Builds and pre-populates the export modal's form. The generic implementation always hosts
-     * it on {@see RecordPackerController}'s own fixed route; SiteTreeExportExtension overrides
-     * this to reuse CMSMain's own hosted form instead (see CMSMainExportActionExtension),
-     * returning null if no such controller is currently available to host it.
-     */
-    protected function getExportModalForm(): ?Form
-    {
-        $form = RecordPackerController::singleton()->ExportModalForm();
-        $form->Fields()->dataFieldByName('RecordClassName')->setValue(get_class($this->owner));
-        $form->Fields()->dataFieldByName('RecordID')->setValue($this->owner->ID);
-
-        return $form;
-    }
-
-    /**
-     * Where the trigger lands in $actions. The generic implementation just pushes it onto the
-     * end; SiteTreeExportExtension overrides this to push into `ActionMenus.MoreOptions`
-     * instead, alongside SiteTree's own Unpublish/Rollback actions.
-     */
-    protected function placeExportTrigger(FieldList $actions, LiteralField $trigger): void
-    {
-        $actions->push($trigger);
+        $this->policy->placeExportTrigger($actions, $trigger);
     }
 }

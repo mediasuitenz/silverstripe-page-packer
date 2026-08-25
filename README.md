@@ -50,11 +50,11 @@ Security in the CMS.
 
 ## Using it on your own DataObject
 
-Everything above (`SiteTreeExportExtension`, `SiteTreeLockExtension`, `SiteTreeExportJob`,
-`SiteTreeImportJob`) is a thin, SiteTree-specific subclass of a generic base
-(`PackableExtension`, `RecordLockExtension`, `RecordExportJob`, `RecordImportJob`) that works on
-any project `DataObject` — typically one edited through an ordinary GridField rather than the
-page tree. Apply the two base extensions to it:
+`SiteTree` gets its "Export" button and locking via the exact same two extension classes any
+other project `DataObject` uses — `PackableExtension` and `RecordLockExtension` — just configured
+via Injector with a SiteTree-specific policy object instead of the default one (see the developer
+guide). Apply the same two extensions, with no extra configuration, to any other `DataObject` —
+typically one edited through an ordinary GridField rather than the page tree:
 
 ```yaml
 App\Model\Catalogue: # any DataObject, not SiteTree
