@@ -172,7 +172,14 @@ class RelationSchema
      * many_many/belongs_many_many relations declared on $class that should be walked as owned
      * content. Relations using `many_many_extraFields` or a `through` join object are reported
      * back separately (in $unsupported) rather than silently dropped, so callers can honour the
-     * fail/best-effort mismatch config rather than losing extra-field/join data quietly.
+     * fail/best-effort mismatch config rather than losing extra-field/join data quietly — UNLESS
+     * a `through` relation's actual target class is itself excluded (see isExcludedClass()), in
+     * which case it's skipped silently just like any other excluded relation, rather than being
+     * reported as an unconditional failure regardless of what it points at. This matters because
+     * a project may have entirely legitimate reasons to exclude a class that happens to only be
+     * reachable via a `through` relation — e.g. real per-environment transactional/PII data that
+     * a `through` join was used to model in the first place (a workflow-status field on the join
+     * row, say) is exactly the shape of content that most needs excluding, not a fatal mismatch.
      *
      * @param array $unsupported Populated with relationName => reason for anything skipped
      * @return array<string, string> relationName => target class
@@ -189,7 +196,17 @@ class RelationSchema
             }
 
             if (is_array($targetClass)) {
-                // 'through' many_many: the array form's 'through' key names a join DataObject.
+                // 'through' many_many: resolve the actual target class via the schema (the raw
+                // $targetClass here is just ['through' => JoinClass, 'from' => ..., 'to' => ...],
+                // not a class name) rather than trusting the raw spec, so an excluded target is
+                // recognised as such before falling through to the unconditional "unsupported"
+                // report below.
+                $resolvedTarget = $schema->manyManyComponent($class, $name)['childClass'] ?? null;
+
+                if ($resolvedTarget && static::isExcludedClass($resolvedTarget)) {
+                    continue;
+                }
+
                 $unsupported[$name] = 'uses a "through" join object, which this module does not support';
 
                 continue;
