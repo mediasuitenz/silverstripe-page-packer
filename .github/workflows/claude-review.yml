@@ -1,0 +1,46 @@
+# Trigger: comment "@clamps-mc <instructions>" on a PR (either a
+# top-level conversation comment, or an inline review comment).
+#
+# Secrets referenced below are REPO-level secrets on this repo (Settings >
+# Secrets and variables > Actions):
+#   CLAUDE_REVIEWER_APP_ID       - the clamps-mc GitHub App's App ID
+#   CLAUDE_REVIEWER_PRIVATE_KEY  - the app's private key (.pem contents)
+#   CLAUDE_CODE_OAUTH_TOKEN      - long-lived token from `claude setup-token`
+
+name: Claude Review (App)
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: |
+      contains(github.event.comment.body, '@clamps-mc') &&
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request != null)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Mint installation token for the custom app
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CLAUDE_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEWER_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Posting with this token, not the default GITHUB_TOKEN, is what
+          # makes the review show up authored by clamps-mc[bot] instead of
+          # github-actions[bot] or your own account.
+          github_token: ${{ steps.app-token.outputs.token }}
