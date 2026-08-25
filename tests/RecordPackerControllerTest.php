@@ -11,6 +11,8 @@ use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use MadeCurious\PagePacker\Tests\Fixtures\TestCatalogue;
 use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
+use SilverStripe\Control\Controller;
+use SilverStripe\Control\Director;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Control\Session;
 use SilverStripe\Core\Injector\Injector;
@@ -75,6 +77,37 @@ class RecordPackerControllerTest extends SapphireTest
             'Implementation' => RecordExportJob::class,
             'Signature' => RecordExportJob::signatureForRecord($catalogue),
         ])->exists());
+    }
+
+    /**
+     * Regression test: this used to trust the submitting request's Referer header as the sole
+     * source of "where to redirect back to", which a Referrer-Policy, browser privacy setting,
+     * or extension can omit entirely on an otherwise ordinary same-origin form POST — silently
+     * sending every export back to the site root instead of the CMS page it was triggered from.
+     * The BackURL hidden field (populated by the caller at modal-build time, not at submission
+     * time) must take priority over Referer.
+     */
+    public function testDoExportRedirectsToBackURLRatherThanTheSiteRoot(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $backURL = Controller::join_links(
+            Director::absoluteBaseURL(),
+            'admin/lead-agencies/Catalogue/EditForm/field/Catalogue/item/' . $catalogue->ID . '/edit'
+        );
+
+        $controller = $this->controller();
+        // Deliberately no Referer header set on the request at all.
+        $response = $controller->doExport([
+            'RecordClassName' => TestCatalogue::class,
+            'RecordID' => $catalogue->ID,
+            'BackURL' => $backURL,
+        ], $controller->ExportModalForm());
+
+        $this->assertStringStartsWith($backURL, $response->getHeader('Location'));
     }
 
     public function testDoExportRejectsANonPackableClass(): void

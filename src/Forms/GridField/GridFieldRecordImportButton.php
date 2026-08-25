@@ -5,6 +5,7 @@ namespace MadeCurious\PagePacker\Forms\GridField;
 use MadeCurious\PagePacker\Controllers\RecordPackerController;
 use MadeCurious\PagePacker\Extensions\PackableExtension;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Support\CurrentBackUrl;
 use MadeCurious\PagePacker\Support\ModalMarkup;
 use SilverStripe\Forms\GridField\GridField_HTMLProvider;
 use SilverStripe\Forms\LiteralField;
@@ -57,6 +58,7 @@ class GridFieldRecordImportButton implements GridField_HTMLProvider
 
         $form = $controller->ImportModalForm();
         $form->Fields()->dataFieldByName('RecordClassName')->setValue($modelClass);
+        $form->Fields()->dataFieldByName('BackURL')->setValue(CurrentBackUrl::capture());
         $form->Fields()->insertAfter('ImportFile', LiteralField::create(
             'PackerImportPreview',
             '<div id="' . $previewId . '" class="page-packer-import-preview" '

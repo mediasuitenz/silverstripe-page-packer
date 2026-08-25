@@ -6,6 +6,9 @@ use MadeCurious\PagePacker\Jobs\RecordExportJob;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Tests\Fixtures\TestCatalogue;
 use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
+use SilverStripe\Control\Controller;
+use SilverStripe\Control\HTTPRequest;
+use SilverStripe\Control\Session;
 use SilverStripe\Dev\SapphireTest;
 use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 use Symbiote\QueuedJobs\Services\QueuedJob;
@@ -127,6 +130,37 @@ class PackableExtensionTest extends SapphireTest
         $actions = $catalogue->getCMSActions();
 
         $this->assertNull($actions->fieldByName('PackerExportModalTrigger'));
+    }
+
+    /**
+     * Regression test: the modal's form used to rely solely on the later submission request's
+     * Referer header to know where to redirect back to, which is genuinely absent on some
+     * browsers/privacy settings/extensions even for an ordinary same-origin POST — silently
+     * sending every export back to the site root. The BackURL hidden field must instead be
+     * pre-populated, at modal-build time, from whatever page is actually being viewed.
+     */
+    public function testExportTriggerFormCarriesTheCurrentPageAsBackURL(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $controller = Controller::create();
+        $request = new HTTPRequest('GET', '/admin/lead-agencies/some-path');
+        $request->setSession(new Session([]));
+        $controller->setRequest($request);
+        $controller->pushCurrent();
+
+        try {
+            $actions = $catalogue->getCMSActions();
+        } finally {
+            $controller->popCurrent();
+        }
+
+        $trigger = $actions->fieldByName('PackerExportModalTrigger');
+        $this->assertNotNull($trigger);
+        $this->assertStringContainsString('admin/lead-agencies/some-path', $trigger->Field());
     }
 
     public function testExportTriggerIsAbsentForAnUnsavedRecord(): void

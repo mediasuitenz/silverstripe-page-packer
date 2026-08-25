@@ -62,6 +62,12 @@ class RecordPackerController extends Controller
         $fields = FieldList::create(
             HiddenField::create('RecordClassName'),
             HiddenField::create('RecordID'),
+            // Populated by the caller (see PackingPolicy::getExportModalForm()) from the URL
+            // that's actually being viewed at the moment the trigger is built, rather than left
+            // to the submitting request's Referer header — which a Referrer-Policy, browser
+            // privacy setting, or extension can omit or strip entirely, silently falling back to
+            // the site root. See redirectToReferer()'s own doc comment.
+            HiddenField::create('BackURL'),
             CheckboxField::create(
                 'IncludeAssets',
                 _t(self::class . '.INCLUDE_ASSETS', 'Include referenced files/images'),
@@ -115,13 +121,15 @@ class RecordPackerController extends Controller
             ['title' => $this->titleFor($record)]
         );
 
-        return $this->redirectToReferer($message);
+        return $this->redirectToReferer($message, (string) ($data['BackURL'] ?? ''));
     }
 
     public function ImportModalForm(): Form
     {
         $fields = FieldList::create(
             HiddenField::create('RecordClassName'),
+            // See ExportModalForm()'s own comment on BackURL.
+            HiddenField::create('BackURL'),
             UploadField::create(
                 'ImportFile',
                 _t(self::class . '.IMPORT_FILE', 'Import a previously exported record (.zip)')
@@ -162,6 +170,8 @@ class RecordPackerController extends Controller
             return Security::permissionFailure($this);
         }
 
+        $backURL = (string) ($data['BackURL'] ?? '');
+
         $uploadField = $form->Fields()->dataFieldByName('ImportFile');
         $items = $uploadField ? $uploadField->getItems() : null;
         $uploadedFile = $items ? $items->first() : null;
@@ -172,7 +182,7 @@ class RecordPackerController extends Controller
                 'bad'
             );
 
-            return $this->redirectToReferer();
+            return $this->redirectToReferer(null, $backURL);
         }
 
         $stub = $class::create();
@@ -182,7 +192,8 @@ class RecordPackerController extends Controller
         QueuedJobService::singleton()->queueJob($job);
 
         return $this->redirectToReferer(
-            _t(self::class . '.QUEUED_FOR_IMPORT', 'Queued the uploaded file for import.')
+            _t(self::class . '.QUEUED_FOR_IMPORT', 'Queued the uploaded file for import.'),
+            $backURL
         );
     }
 
@@ -254,13 +265,22 @@ class RecordPackerController extends Controller
 
     /**
      * Redirects to wherever the modal's form was submitted from — there's no single fixed
-     * "record edit" URL the way the page tree has one, so this reads the Referer instead,
-     * validated as a same-site URL first.
+     * "record edit" URL the way the page tree has one. Prefers the explicit $backURL (the
+     * BackURL hidden field every caller populates from the URL actually being viewed at the
+     * moment the trigger was built — see ExportModalForm()'s own comment), falling back to the
+     * Referer header only if that's missing, and to the site root as a last resort. Deliberately
+     * doesn't trust Referer as the primary source: a Referrer-Policy, browser privacy setting, or
+     * extension can omit or strip it on an otherwise ordinary same-origin form POST, which
+     * silently sent every export/import here back to the site root instead of the CMS.
      */
-    private function redirectToReferer(?string $toastMessage = null): HTTPResponse
+    private function redirectToReferer(?string $toastMessage = null, ?string $backURL = null): HTTPResponse
     {
-        $referer = $this->getRequest()->getHeader('Referer');
-        $link = ($referer && Director::is_site_url($referer)) ? $referer : Director::absoluteBaseURL();
+        $link = ($backURL && Director::is_site_url($backURL)) ? $backURL : null;
+
+        if (!$link) {
+            $referer = $this->getRequest()->getHeader('Referer');
+            $link = ($referer && Director::is_site_url($referer)) ? $referer : Director::absoluteBaseURL();
+        }
 
         if ($toastMessage) {
             $separator = str_contains($link, '?') ? '&' : '?';

@@ -49,6 +49,7 @@ class RecordPackingPolicy implements PackingPolicy
         $form = RecordPackerController::singleton()->ExportModalForm();
         $form->Fields()->dataFieldByName('RecordClassName')->setValue(get_class($owner));
         $form->Fields()->dataFieldByName('RecordID')->setValue($owner->ID);
+        $form->Fields()->dataFieldByName('BackURL')->setValue(CurrentBackUrl::capture());
 
         return $form;
     }
