@@ -3,13 +3,10 @@
 namespace MadeCurious\PagePacker\Controllers;
 
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Support\ExportHistoryField;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\Form;
-use SilverStripe\Forms\GridField\GridField;
-use SilverStripe\Forms\GridField\GridFieldConfig_Base;
-use SilverStripe\Forms\GridField\GridFieldDataColumns;
-use SilverStripe\Forms\GridField\GridFieldDeleteAction;
 use SilverStripe\Security\Permission;
 
 class CMSPageContentExportController extends CMSMain
@@ -35,24 +32,7 @@ class CMSPageContentExportController extends CMSMain
         $record = $id ? $this->getRecord($id) : null;
 
         if ($record && Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
-            $config = GridFieldConfig_Base::create();
-            $config->addComponent(GridFieldDeleteAction::create());
-
-            // using setFieldFormatting() to ensure we get rendered HTML
-            $config->getComponentByType(GridFieldDataColumns::class)->setFieldFormatting([
-                'StaleBadge' => fn ($value, $item) => $item->StaleBadge,
-                'DownloadLinkHtml' => fn ($value, $item) => $item->DownloadLinkHtml,
-                'IncludeAssets' => fn ($value, $item) => $item->IncludeAssets ? 'Yes' : 'No',
-            ]);
-
-            $fields = FieldList::create(
-                GridField::create(
-                    'ExportRequests',
-                    _t(__CLASS__ . '.HISTORY_TITLE', 'Export history'),
-                    $record->ExportRequests(),
-                    $config
-                )
-            );
+            $fields = FieldList::create(ExportHistoryField::create($record));
         } else {
             $fields = FieldList::create();
         }

@@ -58,4 +58,16 @@ interface PackingPolicy
      * generic record, or into `ActionMenus.MoreOptions` for a SiteTree page.
      */
     public function placeExportTrigger(FieldList $actions, LiteralField $trigger): void;
+
+    /**
+     * Whether PackableExtension::updateCMSFields() should add a formatted
+     * {@see ExportHistoryField} back onto the record's own edit form after removing the raw
+     * auto-scaffolded `ExportRequests` relation field.
+     *
+     * True for a generic record, which has nowhere else to see its export history or download a
+     * past export — false for a SiteTree page, which already gets this from a dedicated
+     * "Content Export" tab (see CMSPageContentExportController); adding it inline there too
+     * would just duplicate it.
+     */
+    public function showsHistoryFieldInline(): bool;
 }

@@ -29,8 +29,58 @@ class PackableExtensionTest extends SapphireTest
 
     public function testExportRequestsAutoScaffoldedTabIsRemoved(): void
     {
+        $this->logOut();
+
         $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
         $catalogue->write();
+
+        $fields = $catalogue->getCMSFields();
+
+        // No permission granted, so the formatted replacement isn't added either — this proves
+        // specifically that the raw, unformatted has_many field never survives, independent of
+        // the inline-history behaviour covered separately below.
+        $this->assertNull($fields->dataFieldByName('ExportRequests'));
+    }
+
+    /**
+     * Regression test: a generic record (unlike a SiteTree page, which gets a dedicated
+     * "Content Export" tab from CMSPageContentExportController) has nowhere else to see its
+     * export history or download a past export once the raw scaffolded field is removed — see
+     * PackingPolicy::showsHistoryFieldInline()'s own doc comment. Without this, a Catalogue
+     * editor could queue an export but never retrieve the resulting zip.
+     */
+    public function testExportHistoryIsShownInlineWithPermission(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $fields = $catalogue->getCMSFields();
+
+        $this->assertNotNull(
+            $fields->dataFieldByName('ExportRequests'),
+            'A formatted Export history field must be shown inline for a generic packable record.'
+        );
+    }
+
+    public function testExportHistoryIsAbsentWithoutPermission(): void
+    {
+        $this->logOut();
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $fields = $catalogue->getCMSFields();
+
+        $this->assertNull($fields->dataFieldByName('ExportRequests'));
+    }
+
+    public function testExportHistoryIsAbsentForAnUnsavedRecord(): void
+    {
+        $this->logInWithPermission(ImportExportPermissions::RECORD_IMPORT_EXPORT);
+
+        $catalogue = TestCatalogue::create(['Title' => 'Not written yet']);
 
         $fields = $catalogue->getCMSFields();
 

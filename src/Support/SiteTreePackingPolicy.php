@@ -76,4 +76,11 @@ class SiteTreePackingPolicy implements PackingPolicy
             $actions->push($trigger);
         }
     }
+
+    public function showsHistoryFieldInline(): bool
+    {
+        // A page's history already lives on its own dedicated "Content Export" tab — see
+        // CMSPageContentExportController.
+        return false;
+    }
 }

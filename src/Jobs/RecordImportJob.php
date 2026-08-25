@@ -7,6 +7,7 @@ use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use RuntimeException;
 use SilverStripe\Assets\File;
+use SilverStripe\Core\ClassInfo;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
 use SilverStripe\Security\Security;
@@ -56,7 +57,10 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
 
     public function getTitle(): string
     {
-        return _t(self::class . '.TITLE', 'Import record (#{ID})', ['ID' => $this->stubID]);
+        return _t(self::class . '.TITLE', 'Import {class} (#{ID})', [
+            'class' => $this->stubClass ? ClassInfo::shortName($this->stubClass) : 'record',
+            'ID' => $this->stubID,
+        ]);
     }
 
     public function getSignature(): string

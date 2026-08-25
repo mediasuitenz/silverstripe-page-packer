@@ -3,6 +3,7 @@
 namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Model\ExportRequest;
+use MadeCurious\PagePacker\Support\ExportHistoryField;
 use MadeCurious\PagePacker\Support\ModalMarkup;
 use MadeCurious\PagePacker\Support\PackingPolicy;
 use SilverStripe\Core\Extension;
@@ -45,9 +46,27 @@ class PackableExtension extends Extension
 
     public function updateCMSFields(FieldList $fields): void
     {
-        // hide the export requests default — an editor sees this history through the module's
-        // own UI, not the raw scaffolded relation.
+        // hide the raw auto-scaffolded relation field — an editor sees this history through a
+        // properly formatted GridField instead, either inline here (see below) or, for a
+        // SiteTree page, its own dedicated "Content Export" tab.
         $fields->removeByName('ExportRequests');
+
+        if (!$this->policy->showsHistoryFieldInline()) {
+            return;
+        }
+
+        if (!$this->owner->exists() || !Permission::check($this->policy->permissionCode())) {
+            return;
+        }
+
+        $historyField = ExportHistoryField::create($this->owner);
+
+        if ($fields->hasTabSet()) {
+            $fields->findOrMakeTab('Root.ExportHistory', _t(self::class . '.EXPORT_HISTORY_TAB', 'Export history'));
+            $fields->addFieldToTab('Root.ExportHistory', $historyField);
+        } else {
+            $fields->push($historyField);
+        }
     }
 
     public function updateCMSActions(FieldList $actions): void

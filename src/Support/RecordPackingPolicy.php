@@ -72,4 +72,9 @@ class RecordPackingPolicy implements PackingPolicy
     {
         $actions->insertBefore('action_doDelete', $trigger);
     }
+
+    public function showsHistoryFieldInline(): bool
+    {
+        return true;
+    }
 }

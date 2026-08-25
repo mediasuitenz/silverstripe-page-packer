@@ -7,6 +7,7 @@ use MadeCurious\PagePacker\Serialization\AssetBundler;
 use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
 use MadeCurious\PagePacker\Serialization\RecordSerializer;
 use RuntimeException;
+use SilverStripe\Core\ClassInfo;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
@@ -54,7 +55,10 @@ class RecordExportJob extends AbstractQueuedJob implements QueuedJob
 
     public function getTitle(): string
     {
-        return _t(self::class . '.TITLE', 'Export record (#{ID})', ['ID' => $this->recordID]);
+        return _t(self::class . '.TITLE', 'Export {class} (#{ID})', [
+            'class' => $this->recordClass ? ClassInfo::shortName($this->recordClass) : 'record',
+            'ID' => $this->recordID,
+        ]);
     }
 
     /**
