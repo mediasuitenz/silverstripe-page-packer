@@ -114,24 +114,36 @@ class RecordSerializer
         $assetsManifest = (array) ($manifest['assets'] ?? []);
 
         // Pass 1: create every node (scalar fields only) so every local ID maps to a real record
-        // before any relation — including lateral/sibling ones — gets resolved.
-        $this->created[$rootLocalId] = $root;
-        $this->applyScalarFields($root, $nodes[$rootLocalId], $assetsManifest);
-        $root->write();
+        // before any relation — including lateral/sibling ones — gets resolved. Every has_one
+        // relation is still empty at this point by design, so validation is deliberately disabled
+        // for these writes — a project's validate() may legitimately require a relation to be
+        // set (e.g. "this record must point at a Field"), which pass 1 can never satisfy no
+        // matter what order nodes are created in. Pass 2's write (see applyRelations()), once
+        // every relation is actually in place, runs with validation restored to normal.
+        $originalValidationEnabled = DataObject::config()->uninherited('validation_enabled');
+        DataObject::config()->set('validation_enabled', false);
 
-        foreach ($nodes as $localId => $node) {
-            // Normalize to string at every use.
-            $localId = (string) $localId;
+        try {
+            $this->created[$rootLocalId] = $root;
+            $this->applyScalarFields($root, $nodes[$rootLocalId], $assetsManifest);
+            $root->write();
 
-            if ($localId === $rootLocalId) {
-                continue;
+            foreach ($nodes as $localId => $node) {
+                // Normalize to string at every use.
+                $localId = (string) $localId;
+
+                if ($localId === $rootLocalId) {
+                    continue;
+                }
+
+                $record = $this->createNode($node, $assetsManifest);
+
+                if ($record !== null) {
+                    $this->created[$localId] = $record;
+                }
             }
-
-            $record = $this->createNode($node, $assetsManifest);
-
-            if ($record !== null) {
-                $this->created[$localId] = $record;
-            }
+        } finally {
+            DataObject::config()->set('validation_enabled', $originalValidationEnabled);
         }
 
         // Pass 2: now that every node exists, resolve has_one (incl. polymorphic + asset)
