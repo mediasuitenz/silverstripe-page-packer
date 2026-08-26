@@ -4,7 +4,8 @@ namespace MadeCurious\PagePacker\Support;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Support\PackingPolicy;
 use SilverStripe\Control\Controller;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\Form;
@@ -16,7 +17,7 @@ use SilverStripe\ORM\DataObject;
  * whichever CMSMain-derived controller is currently rendering the page (via
  * {@see \MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension}'s own
  * `ExportModalForm`/`doExport`, using the page's `PageID`) rather than the generic
- * {@see \MadeCurious\PagePacker\Controllers\RecordPackerController}, and places the trigger
+ * {@see \MadeCurious\RecordPacker\Controllers\RecordPackerController}, and places the trigger
  * inside the `ActionMenus.MoreOptions` popup next to Save/Publish/Unpublish/Rollback rather than
  * pushed flat onto the action bar.
  *
@@ -29,7 +30,7 @@ class SiteTreePackingPolicy implements PackingPolicy
 {
     public function permissionCode(): string
     {
-        return ImportExportPermissions::SITETREE_IMPORT_EXPORT;
+        return SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT;
     }
 
     public function exportJobClass(): string

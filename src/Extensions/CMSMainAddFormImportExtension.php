@@ -3,8 +3,9 @@
 namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
-use MadeCurious\PagePacker\Serialization\AssetBundler;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Extensions\RecordLockExtension;
+use MadeCurious\RecordPacker\Serialization\AssetBundler;
 use SilverStripe\AssetAdmin\Forms\UploadField;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
@@ -33,7 +34,7 @@ class CMSMainAddFormImportExtension extends Extension
 
     public function updatePageOptions(FieldList $fields): void
     {
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
+        if (!Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return;
         }
 
@@ -71,7 +72,7 @@ class CMSMainAddFormImportExtension extends Extension
     {
         $response = HTTPResponse::create()->addHeader('Content-Type', 'application/json');
 
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
+        if (!Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return $response->setStatusCode(403)->setBody(json_encode(['error' => 'Permission denied.']));
         }
 
@@ -118,7 +119,7 @@ class CMSMainAddFormImportExtension extends Extension
 
     public function updateDoAdd(&$record, Form $form): void
     {
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
+        if (!Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return;
         }
 

@@ -2,8 +2,8 @@
 
 namespace MadeCurious\PagePacker\Controllers;
 
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
-use MadeCurious\PagePacker\Support\ExportHistoryField;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Support\ExportHistoryField;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\Form;
@@ -31,7 +31,7 @@ class CMSPageContentExportController extends CMSMain
         $id = $id ?: $this->currentRecordID();
         $record = $id ? $this->getRecord($id) : null;
 
-        if ($record && Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
+        if ($record && Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             $fields = FieldList::create(ExportHistoryField::create($record));
         } else {
             $fields = FieldList::create();

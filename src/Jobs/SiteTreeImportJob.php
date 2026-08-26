@@ -2,6 +2,7 @@
 
 namespace MadeCurious\PagePacker\Jobs;
 
+use MadeCurious\RecordPacker\Jobs\RecordImportJob;
 use SilverStripe\Assets\File;
 use SilverStripe\CMS\Model\SiteTree;
 

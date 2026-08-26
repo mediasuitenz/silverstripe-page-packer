@@ -4,8 +4,8 @@ namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Controllers\CMSPageContentExportController;
 use MadeCurious\PagePacker\Jobs\SiteTreeExportJob;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
-use MadeCurious\PagePacker\Support\ExportQueuer;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Support\ExportQueuer;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPResponse;
 use SilverStripe\Core\Extension;
@@ -56,7 +56,7 @@ class CMSMainExportActionExtension extends Extension
 
     public function doExport(array $data, Form $form): HTTPResponse
     {
-        if (!Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
+        if (!Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT)) {
             return Security::permissionFailure($this->owner);
         }
 

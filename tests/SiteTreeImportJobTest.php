@@ -3,9 +3,9 @@
 namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use MadeCurious\PagePacker\Model\ExportRequest;
-use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\RecordSerializer;
+use MadeCurious\RecordPacker\Model\ExportRequest;
+use MadeCurious\RecordPacker\Serialization\AssetBundler;
+use MadeCurious\RecordPacker\Serialization\RecordSerializer;
 use RuntimeException;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Injector\Injector;

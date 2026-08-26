@@ -2,9 +2,9 @@
 
 namespace MadeCurious\PagePacker\Tests;
 
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
-use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\RecordSerializer;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Serialization\AssetBundler;
+use MadeCurious\RecordPacker\Serialization\RecordSerializer;
 use SilverStripe\Assets\File;
 use SilverStripe\Assets\Image;
 use SilverStripe\CMS\Controllers\CMSMain;
@@ -41,7 +41,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
 
     public function testValidExportZipReturnsItsMeta(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $page = SiteTree::create(['Title' => 'A page', 'URLSegment' => 'a-page']);
         $page->write();
@@ -71,7 +71,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
      */
     public function testAssetCountReflectsAttachedFiles(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $image = Image::create();
         $image->setFromString('not-really-a-jpeg', 'photo.jpg');
@@ -100,7 +100,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
      */
     public function testUnknownClassIsReportedButNotFatal(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $assetBundler = Injector::inst()->create(AssetBundler::class);
         $manifest = [
@@ -123,7 +123,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
 
     public function testFileThatIsNotAValidZipReturnsAnError(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $file = File::create();
         $file->setFromString('this is not a zip', 'not-a-zip.zip');
@@ -138,7 +138,7 @@ class CMSMainAddFormImportExtensionTest extends SapphireTest
 
     public function testMissingFileReturnsAnError(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $response = $this->controller()->importPreview($this->request(999999));
 

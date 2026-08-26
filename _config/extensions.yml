@@ -1,34 +1,30 @@
 ---
 Name: page-packer-extensions
 ---
-# PackingPolicy supplies everything PackableExtension/RecordLockExtension need that varies
-# between "a SiteTree page" and "any other packable DataObject" (permission code, job classes,
-# where to host the export form, where the trigger is placed) — see that interface's own doc
-# comment. Two named Injector service variants, one per case, plus a default alias: exactly the
-# pattern silverstripe/versioned's own Versioned extension uses for its Stage/StagedVersioned
-# modes (versioned/_config/versionedextension.yml).
+# The SiteTree/CMSMain-specific PackingPolicy variant (see madecurious/silverstripe-record-packer's
+# own PackingPolicy interface doc comment for why a named Injector variant, rather than a subclass
+# of PackableExtension/RecordLockExtension, is how this is wired up — the same pattern
+# silverstripe/versioned's own Versioned extension uses for its Stage/StagedVersioned modes).
 SilverStripe\Core\Injector\Injector:
-  MadeCurious\PagePacker\Support\PackingPolicy.record:
-    class: MadeCurious\PagePacker\Support\RecordPackingPolicy
-  MadeCurious\PagePacker\Support\PackingPolicy.sitetree:
+  # Named variant of the CORE PackingPolicy interface/service — same pattern
+  # madecurious/silverstripe-record-packer's own default variant uses, just registered from this
+  # module instead, so core has no need to know SiteTree support exists at all.
+  MadeCurious\RecordPacker\Support\PackingPolicy.sitetree:
     class: MadeCurious\PagePacker\Support\SiteTreePackingPolicy
-  # Default: any class applying PackableExtension/RecordLockExtension without requesting the
-  # .sitetree variant explicitly gets the generic policy.
-  MadeCurious\PagePacker\Support\PackingPolicy: '%$MadeCurious\PagePacker\Support\PackingPolicy.record'
 
   # SiteTree gets the very same two extension classes as any other packable DataObject, just
-  # constructed with the .sitetree policy variant instead of the default. Named as their own
+  # constructed with the SiteTree policy variant instead of the default. Named as their own
   # service variants (rather than passing the policy inline on SiteTree's own $extensions list)
   # so each variant gets its own Injector singleton cache entry — see PackingPolicy's doc comment
   # for why that distinction matters.
-  MadeCurious\PagePacker\Extensions\PackableExtension.sitetree:
-    class: MadeCurious\PagePacker\Extensions\PackableExtension
+  MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree:
+    class: MadeCurious\RecordPacker\Extensions\PackableExtension
     constructor:
-      - '%$MadeCurious\PagePacker\Support\PackingPolicy.sitetree'
-  MadeCurious\PagePacker\Extensions\RecordLockExtension.sitetree:
-    class: MadeCurious\PagePacker\Extensions\RecordLockExtension
+      - '%$MadeCurious\RecordPacker\Support\PackingPolicy.sitetree'
+  MadeCurious\RecordPacker\Extensions\RecordLockExtension.sitetree:
+    class: MadeCurious\RecordPacker\Extensions\RecordLockExtension
     constructor:
-      - '%$MadeCurious\PagePacker\Support\PackingPolicy.sitetree'
+      - '%$MadeCurious\RecordPacker\Support\PackingPolicy.sitetree'
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:
@@ -37,15 +33,8 @@ SilverStripe\CMS\Model\SiteTree:
     # ClassInfo::parse_class_spec() BEFORE any %$ stripping, so a %$-prefixed whole entry gets
     # mangled by the tokenizer and fails that check. A bare `ClassName.variant` entry resolves
     # through Injector identically (see getExtensionInstances()) without tripping it.
-    - MadeCurious\PagePacker\Extensions\RecordLockExtension.sitetree
-    - MadeCurious\PagePacker\Extensions\PackableExtension.sitetree
-
-# SiteTree's own $has_one['Parent'] represents a page's position in the CMS page tree (handled by
-# the tree UI itself), not ordinary owned/referenced content — see RelationSchema's own doc
-# comment on this config for why it's expressed this way rather than a hardcoded class check.
-MadeCurious\PagePacker\Serialization\RelationSchema:
-  structural_has_one_relations:
-    SilverStripe\CMS\Model\SiteTree: Parent
+    - MadeCurious\RecordPacker\Extensions\RecordLockExtension.sitetree
+    - MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree
 
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
@@ -53,19 +42,19 @@ SilverStripe\CMS\Controllers\CMSMain:
     - MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
     - MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
 
-# Mismatch handling for an unsupported relation/class/property
-# — 'fail' aborts an export/import with a clear error
-# - 'best_effort' skips what doesn't match and records a warning instead.
-# Shared by both the SiteTree/CMSMain flow above and the generic DataObject flow below — both
-# ultimately serialize through this same class (see its own doc comment).
-MadeCurious\PagePacker\Serialization\RecordSerializer:
-  mismatch_behaviour: fail
-
-# --- Generic DataObject/GridField support -----------------------------------------------------
-# Apply RecordLockExtension + PackableExtension to any project DataObject (see the developer
-# guide) to get the same export/import capability SiteTree gets above, without needing the page
-# tree at all — no policy variant needed, the default alias above applies. This one is applied
-# globally and unconditionally:
-SilverStripe\Forms\GridField\GridFieldDetailForm_ItemRequest:
-  extensions:
-    - MadeCurious\PagePacker\Extensions\GridFieldRecordActionsExtension
+# SiteTree's own $has_one['Parent'] represents a page's position in the CMS page tree (handled by
+# the tree UI itself), not ordinary owned/referenced content — see RelationSchema's own doc
+# comment on this config for why it's expressed this way rather than a hardcoded class check.
+#
+# UserForms' visitor submission data (SubmittedForm/SubmittedFormField/SubmittedFileField) is
+# real, live, per-environment visitor data, not form-definition content — it has no business
+# travelling between environments in an export zip. Merges with
+# madecurious/silverstripe-record-packer's own default (just its own ExportRequest) rather than
+# replacing it — SilverStripe config arrays combine across sources.
+MadeCurious\RecordPacker\Serialization\RelationSchema:
+  structural_has_one_relations:
+    SilverStripe\CMS\Model\SiteTree: Parent
+  excluded_relation_classes:
+    - SilverStripe\UserForms\Model\Submission\SubmittedForm
+    - SilverStripe\UserForms\Model\Submission\SubmittedFormField
+    - SilverStripe\UserForms\Model\Submission\SubmittedFileField
