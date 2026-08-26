@@ -222,4 +222,76 @@ class RecordPackerControllerTest extends SapphireTest
             'Implementation' => RecordImportJob::class,
         ])->exists());
     }
+
+    /**
+     * The GridField/DataObject equivalent of "Add new page" landing you straight on the new
+     * page's own edit view — see GridFieldRecordImportButton/ImportModalForm's own comments on
+     * why GridFieldLink (not BackURL, which is only the grid's *list* URL) is what makes this
+     * possible here.
+     */
+    public function testDoImportRedirectsIntoTheNewStubsOwnEditViewWhenGridFieldLinkIsGiven(): void
+    {
+        $this->logInWithPermission(['ADMIN', ImportExportPermissions::RECORD_IMPORT_EXPORT]);
+
+        $source = TestCatalogue::create(['Title' => 'Source catalogue']);
+        $source->write();
+
+        $assetBundler = Injector::inst()->create(AssetBundler::class);
+        $exporter = new RecordSerializer($assetBundler, true);
+        $manifest = $exporter->export($source);
+        $file = $assetBundler->writeZip($manifest, 'catalogue-export.zip');
+
+        $controller = $this->controller();
+        $form = $controller->ImportModalForm();
+        $form->Fields()->dataFieldByName('ImportFile')->setItems(ArrayList::create([$file]));
+
+        $gridFieldLink = Controller::join_links(
+            Director::absoluteBaseURL(),
+            'admin/lead-agencies/Catalogue/EditForm/field/Catalogue'
+        );
+
+        $response = $controller->doImport([
+            'RecordClassName' => TestCatalogue::class,
+            'GridFieldLink' => $gridFieldLink,
+        ], $form);
+
+        $stub = TestCatalogue::get()->sort('ID', 'DESC')->first();
+
+        $this->assertSame('Importing…', $stub->Title, 'The new stub gets a placeholder Title while the job runs.');
+
+        $location = $response->getHeader('Location');
+        $this->assertStringStartsWith(
+            Controller::join_links($gridFieldLink, 'item', $stub->ID),
+            $location,
+            'Must redirect straight into the new stub\'s own edit view, not back to the grid list.'
+        );
+        $this->assertStringContainsString('page-packer-toast-title=Import', $location);
+    }
+
+    public function testDoImportFallsBackToBackURLWithoutAGridFieldLink(): void
+    {
+        $this->logInWithPermission(['ADMIN', ImportExportPermissions::RECORD_IMPORT_EXPORT]);
+
+        $source = TestCatalogue::create(['Title' => 'Source catalogue']);
+        $source->write();
+
+        $assetBundler = Injector::inst()->create(AssetBundler::class);
+        $exporter = new RecordSerializer($assetBundler, true);
+        $manifest = $exporter->export($source);
+        $file = $assetBundler->writeZip($manifest, 'catalogue-export.zip');
+
+        $controller = $this->controller();
+        $form = $controller->ImportModalForm();
+        $form->Fields()->dataFieldByName('ImportFile')->setItems(ArrayList::create([$file]));
+
+        $backURL = Controller::join_links(Director::absoluteBaseURL(), 'admin/lead-agencies');
+
+        // Deliberately no GridFieldLink — e.g. an older cached copy of the button's markup.
+        $response = $controller->doImport([
+            'RecordClassName' => TestCatalogue::class,
+            'BackURL' => $backURL,
+        ], $form);
+
+        $this->assertStringStartsWith($backURL, $response->getHeader('Location'));
+    }
 }

@@ -130,6 +130,13 @@ class RecordPackerController extends Controller
             HiddenField::create('RecordClassName'),
             // See ExportModalForm()'s own comment on BackURL.
             HiddenField::create('BackURL'),
+            // Populated by GridFieldRecordImportButton from the very $gridField instance it's
+            // rendering into — lets doImport() redirect straight into the new stub's own edit
+            // view once queued, the same "land on the new record" behaviour the page tree already
+            // gets for free from CMSMain's native "Add new page" flow (see
+            // CMSMainAddFormImportExtension). BackURL alone can't do this: it's just the grid's
+            // *list* URL, with no reusable way to build a specific item's edit URL from it.
+            HiddenField::create('GridFieldLink'),
             UploadField::create(
                 'ImportFile',
                 _t(self::class . '.IMPORT_FILE', 'Import a previously exported record (.zip)')
@@ -186,15 +193,44 @@ class RecordPackerController extends Controller
         }
 
         $stub = $class::create();
+
+        // Placeholder so the edit view we're about to redirect into isn't just blank while the
+        // queued job fills it in — mirrors CMSMainAddFormImportExtension's identical placeholder
+        // for the page-tree import flow.
+        if ($stub->hasField('Title')) {
+            $stub->Title = _t(self::class . '.IMPORTING_TITLE', 'Importing…');
+        }
+
         $stub->write();
 
         $job = new RecordImportJob($stub, $uploadedFile);
         QueuedJobService::singleton()->queueJob($job);
 
-        return $this->redirectToReferer(
-            _t(self::class . '.QUEUED_FOR_IMPORT', 'Queued the uploaded file for import.'),
-            $backURL
-        );
+        $message = _t(self::class . '.QUEUED_FOR_IMPORT', 'Queued the uploaded file for import.');
+        $itemLink = $this->itemEditLink((string) ($data['GridFieldLink'] ?? ''), $stub);
+
+        if ($itemLink) {
+            return $this->redirect($this->appendToast($itemLink, $message, 'Import'));
+        }
+
+        // Fallback for the rare case GridFieldLink wasn't usable (missing/invalid, e.g. a
+        // GridField whose config doesn't route a normal item/edit URL) — back to the grid list,
+        // same as before this was added.
+        return $this->redirectToReferer($message, $backURL, 'Import');
+    }
+
+    /**
+     * Builds the URL of $stub's own edit view inside the GridField that triggered this import, or
+     * null if $gridFieldLink isn't usable — either not captured at all (an older cached copy of
+     * GridFieldRecordImportButton's markup) or not actually a same-site URL.
+     */
+    private function itemEditLink(string $gridFieldLink, DataObject $stub): ?string
+    {
+        if (!$gridFieldLink || !Director::is_site_url($gridFieldLink)) {
+            return null;
+        }
+
+        return Controller::join_links($gridFieldLink, 'item', (string) $stub->ID);
     }
 
     /**
@@ -273,8 +309,11 @@ class RecordPackerController extends Controller
      * extension can omit or strip it on an otherwise ordinary same-origin form POST, which
      * silently sent every export/import here back to the site root instead of the CMS.
      */
-    private function redirectToReferer(?string $toastMessage = null, ?string $backURL = null): HTTPResponse
-    {
+    private function redirectToReferer(
+        ?string $toastMessage = null,
+        ?string $backURL = null,
+        ?string $toastTitle = null
+    ): HTTPResponse {
         $link = ($backURL && Director::is_site_url($backURL)) ? $backURL : null;
 
         if (!$link) {
@@ -282,11 +321,28 @@ class RecordPackerController extends Controller
             $link = ($referer && Director::is_site_url($referer)) ? $referer : Director::absoluteBaseURL();
         }
 
-        if ($toastMessage) {
-            $separator = str_contains($link, '?') ? '&' : '?';
-            $link .= $separator . 'page-packer-toast=' . rawurlencode($toastMessage);
+        return $this->redirect($this->appendToast($link, $toastMessage, $toastTitle));
+    }
+
+    /**
+     * Appends the toast query params export-modal.js reads and clears from the URL bar once
+     * shown. $toastTitle is the toast's header ("Export"/"Import") — left off for doExport(),
+     * whose default of "Export" (baked into export-modal.js for backwards compatibility with
+     * exports queued before this existed) is already correct.
+     */
+    private function appendToast(string $link, ?string $toastMessage, ?string $toastTitle = null): string
+    {
+        if (!$toastMessage) {
+            return $link;
         }
 
-        return $this->redirect($link);
+        $separator = str_contains($link, '?') ? '&' : '?';
+        $link .= $separator . 'page-packer-toast=' . rawurlencode($toastMessage);
+
+        if ($toastTitle) {
+            $link .= '&page-packer-toast-title=' . rawurlencode($toastTitle);
+        }
+
+        return $link;
     }
 }

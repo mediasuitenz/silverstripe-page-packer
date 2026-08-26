@@ -59,6 +59,9 @@ class GridFieldRecordImportButton implements GridField_HTMLProvider
         $form = $controller->ImportModalForm();
         $form->Fields()->dataFieldByName('RecordClassName')->setValue($modelClass);
         $form->Fields()->dataFieldByName('BackURL')->setValue(CurrentBackUrl::capture());
+        // Lets doImport() redirect straight into the new stub's own edit view — see
+        // ImportModalForm()'s own comment on this field.
+        $form->Fields()->dataFieldByName('GridFieldLink')->setValue($gridField->Link());
         $form->Fields()->insertAfter('ImportFile', LiteralField::create(
             'PackerImportPreview',
             '<div id="' . $previewId . '" class="page-packer-import-preview" '

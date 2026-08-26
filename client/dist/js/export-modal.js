@@ -70,10 +70,15 @@
             document.body.appendChild(container);
         }
 
+        // Defaults to "Export" for backwards compatibility — an export queued by a copy of the
+        // controller from before page-packer-toast-title existed still redirects without it.
+        var toastTitle = params.get('page-packer-toast-title') || 'Export';
+
         var toast = document.createElement('div');
         toast.className = 'toast toast--good';
-        toast.innerHTML = '<div class="toast-header"><strong>Export</strong></div>'
+        toast.innerHTML = '<div class="toast-header"><strong></strong></div>'
             + '<div class="toast-body"></div>';
+        toast.querySelector('.toast-header strong').textContent = toastTitle;
         toast.querySelector('.toast-body').textContent = toastMessage;
         container.appendChild(toast);
 
@@ -82,6 +87,7 @@
         }, 6000);
 
         params.delete('page-packer-toast');
+        params.delete('page-packer-toast-title');
 
         var newSearch = params.toString();
         var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
