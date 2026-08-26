@@ -11,6 +11,8 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
 use SilverStripe\Versioned\Versioned;
+use Symbiote\QueuedJobs\Controllers\QueuedJobsAdmin;
+use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 
 /**
  * Tracks one export bundle for a record — either an actual export job's output (Origin=Export)
@@ -56,6 +58,12 @@ class ExportRequest extends DataObject
         'Record' => DataObject::class,
         'Member' => Member::class,
         'ResultFile' => File::class,
+        // Set at queue time (export) or on completion/failure (import) so the Status column can
+        // link straight through to the job's own admin/queuedjobs record — its live progress
+        // while Queued/Running, or its log/error detail once finished. Left null once the
+        // descriptor itself is gone (e.g. purged by symbiote's own cleanup), in which case the
+        // Status column just falls back to plain text — see getStatusLinkHtml().
+        'QueuedJobDescriptor' => QueuedJobDescriptor::class,
     ];
 
     private static $owns = [
@@ -68,7 +76,7 @@ class ExportRequest extends DataObject
         'Created' => 'Date',
         'Description' => 'Description',
         'Origin' => 'Origin',
-        'Status' => 'Status',
+        'StatusLinkHtml' => 'Status',
         'Member.Title' => 'Requested by',
         'IncludeAssets' => 'Assets included',
         'StaleBadge' => 'Stale',
@@ -81,6 +89,7 @@ class ExportRequest extends DataObject
     private static $casting = [
         'StaleBadge' => 'HTMLFragment',
         'DownloadLinkHtml' => 'HTMLFragment',
+        'StatusLinkHtml' => 'HTMLFragment',
     ];
 
     /**
@@ -194,6 +203,36 @@ class ExportRequest extends DataObject
         return $this->isStale()
             ? '<span class="badge badge-warning">' . _t(self::class . '.STALE', 'Stale') . '</span>'
             : '<span class="badge badge-success">' . _t(self::class . '.FRESH', 'Fresh') . '</span>';
+    }
+
+    /**
+     * The Status column's value, linked through to this request's own QueuedJobDescriptor in
+     * admin/queuedjobs — its live progress while Queued/Running, or its log/error detail once
+     * finished. Falls back to plain (escaped) status text once there's nothing to link to: no
+     * descriptor was ever recorded (older rows, from before this existed), the descriptor's since
+     * been purged, or the current member can't access the Jobs admin section anyway.
+     */
+    public function getStatusLinkHtml(): string
+    {
+        $status = htmlspecialchars((string) $this->Status);
+
+        if (!$this->QueuedJobDescriptorID) {
+            return $status;
+        }
+
+        if (!Permission::check(QueuedJobsAdmin::getRequiredPermissions())) {
+            return $status;
+        }
+
+        $descriptor = $this->QueuedJobDescriptor();
+
+        if (!$descriptor || !$descriptor->exists()) {
+            return $status;
+        }
+
+        $link = QueuedJobsAdmin::singleton()->getCMSEditLinkForManagedDataObject($descriptor);
+
+        return '<a href="' . htmlspecialchars($link) . '">' . $status . '</a>';
     }
 
     public function getDownloadLinkHtml(): string

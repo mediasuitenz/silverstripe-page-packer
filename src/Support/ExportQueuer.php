@@ -34,7 +34,8 @@ final class ExportQueuer
         $exportRequest->write();
 
         $job = new $jobClass($record, $includeAssets, $exportRequest->ID);
-        QueuedJobService::singleton()->queueJob($job);
+        $exportRequest->QueuedJobDescriptorID = QueuedJobService::singleton()->queueJob($job);
+        $exportRequest->write();
 
         return $exportRequest;
     }

@@ -12,6 +12,7 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
 use SilverStripe\Security\Security;
 use SilverStripe\Versioned\Versioned;
+use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 use Symbiote\QueuedJobs\Services\AbstractQueuedJob;
 use Symbiote\QueuedJobs\Services\QueuedJob;
 use Throwable;
@@ -192,6 +193,7 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->ResultFileID = $uploadedFile->ID;
         $exportRequest->IncludeAssets = $assetBundler->hasEmbeddedAssets($manifest);
+        $exportRequest->QueuedJobDescriptorID = $this->currentJobDescriptorID();
         $exportRequest->write();
 
         $this->addMessage("Imported record #{$record->ID} successfully.");
@@ -228,6 +230,21 @@ class RecordImportJob extends AbstractQueuedJob implements QueuedJob
         $exportRequest->Origin = ExportRequest::ORIGIN_IMPORT;
         $exportRequest->StatusMessage = $e->getMessage();
         $exportRequest->ResultFileID = $this->uploadedFileID;
+        $exportRequest->QueuedJobDescriptorID = $this->currentJobDescriptorID();
         $exportRequest->write();
+    }
+
+    /**
+     * This job doesn't otherwise know its own QueuedJobDescriptor ID while running — nothing in
+     * symbiote's AbstractQueuedJob exposes it — so it's looked up by signature instead. Safe here
+     * specifically because this job's signature is ID-only (see signaturePrefix()/getSignature())
+     * and QueuedJobService::queueJob() itself refuses to double-queue a matching signature, so
+     * exactly one descriptor exists for this stub at any moment this job could be running.
+     */
+    private function currentJobDescriptorID(): ?int
+    {
+        $descriptor = QueuedJobDescriptor::get()->filter('Signature', $this->getSignature())->first();
+
+        return $descriptor ? (int) $descriptor->ID : null;
     }
 }

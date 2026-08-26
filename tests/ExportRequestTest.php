@@ -13,6 +13,8 @@ use MadeCurious\PagePacker\Tests\Fixtures\TestProduct;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\FieldType\DBDatetime;
+use Symbiote\QueuedJobs\Controllers\QueuedJobsAdmin;
+use Symbiote\QueuedJobs\DataObjects\QueuedJobDescriptor;
 
 /**
  * Covers the one shared history model — `Record` is a polymorphic has_one (see the class's own
@@ -341,5 +343,100 @@ class ExportRequestTest extends SapphireTest
             $request->isStale(),
             'Stale after editing an owned child, even though the parent was not re-saved.'
         );
+    }
+
+    public function testStatusLinkHtmlIsPlainTextWithoutAJobDescriptor(): void
+    {
+        $this->logInWithPermission(QueuedJobsAdmin::getRequiredPermissions());
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $request = ExportRequest::create([
+            'RecordID' => $catalogue->ID,
+            'RecordClass' => TestCatalogue::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Status' => ExportRequest::STATUS_QUEUED,
+        ]);
+        $request->write();
+
+        $this->assertSame('Queued', $request->getStatusLinkHtml());
+    }
+
+    public function testStatusLinkHtmlLinksThroughToTheJobsAdminWithPermission(): void
+    {
+        $this->logInWithPermission(QueuedJobsAdmin::getRequiredPermissions());
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $descriptor = QueuedJobDescriptor::create([
+            'JobTitle' => 'Export TestCatalogue (#' . $catalogue->ID . ')',
+            'Signature' => 'test-signature',
+        ]);
+        $descriptor->write();
+
+        $request = ExportRequest::create([
+            'RecordID' => $catalogue->ID,
+            'RecordClass' => TestCatalogue::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Status' => ExportRequest::STATUS_QUEUED,
+            'QueuedJobDescriptorID' => $descriptor->ID,
+        ]);
+        $request->write();
+
+        $html = $request->getStatusLinkHtml();
+        $expectedLink = QueuedJobsAdmin::singleton()->getCMSEditLinkForManagedDataObject($descriptor);
+
+        $this->assertStringContainsString('<a href="' . htmlspecialchars($expectedLink) . '"', $html);
+        $this->assertStringContainsString('>Queued<', $html);
+    }
+
+    public function testStatusLinkHtmlFallsBackToPlainTextWithoutPermission(): void
+    {
+        // Deliberately logged out rather than merely "not given QueuedJobsAdmin's permission" —
+        // an editor who can see this history GridField (RECORD_IMPORT_EXPORT/
+        // SITETREE_IMPORT_EXPORT) doesn't automatically also have access to admin/queuedjobs.
+        $this->logOut();
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $descriptor = QueuedJobDescriptor::create([
+            'JobTitle' => 'Export TestCatalogue (#' . $catalogue->ID . ')',
+            'Signature' => 'test-signature-no-permission',
+        ]);
+        $descriptor->write();
+
+        $request = ExportRequest::create([
+            'RecordID' => $catalogue->ID,
+            'RecordClass' => TestCatalogue::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Status' => ExportRequest::STATUS_QUEUED,
+            'QueuedJobDescriptorID' => $descriptor->ID,
+        ]);
+        $request->write();
+
+        $this->assertSame('Queued', $request->getStatusLinkHtml());
+    }
+
+    public function testStatusLinkHtmlFallsBackToPlainTextWhenTheDescriptorHasBeenPurged(): void
+    {
+        $this->logInWithPermission(QueuedJobsAdmin::getRequiredPermissions());
+
+        $catalogue = TestCatalogue::create(['Title' => 'A catalogue']);
+        $catalogue->write();
+
+        $request = ExportRequest::create([
+            'RecordID' => $catalogue->ID,
+            'RecordClass' => TestCatalogue::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+            'Status' => ExportRequest::STATUS_COMPLETE,
+            // Points at a descriptor ID that doesn't (or no longer) exists.
+            'QueuedJobDescriptorID' => 999999,
+        ]);
+        $request->write();
+
+        $this->assertSame('Complete', $request->getStatusLinkHtml());
     }
 }
