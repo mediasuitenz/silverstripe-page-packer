@@ -36,8 +36,8 @@ class RelationSchema
     ];
 
     /**
-     * DataObject classes that are never walked into via has_many/many_many, regardless of the
-     * relation name pointing at them.
+     * DataObject classes that are never walked into via has_one/has_many/many_many, regardless
+     * of the relation name pointing at them.
      *
      * @var string[]
      */
@@ -69,7 +69,11 @@ class RelationSchema
         $schema = DataObject::getSchema();
         $fields = $schema->fieldSpecs($class, DataObjectSchema::DB_ONLY);
 
-        foreach (array_keys(static::hasOneRelations($class)) as $relationName) {
+        // Strip every has_one FK column using the RAW declared list, not hasOneRelations()'s
+        // filtered one — an excluded/asset/tree-position has_one is still a relation column, not
+        // a plain field, and must never fall through to being re-applied on import as a bare,
+        // unresolved integer (see hasOneRelations()'s own doc comment).
+        foreach (array_keys(DataObject::singleton($class)->hasOne()) as $relationName) {
             unset($fields["{$relationName}ID"]);
         }
 
@@ -82,7 +86,11 @@ class RelationSchema
 
     /**
      * has_one relations declared on $class (own + inherited, incl. via applied extensions),
-     * excluding relations to File/Image (those are asset relations
+     * excluding relations to File/Image (those are asset relations) and to any class listed in
+     * $excluded_relation_classes — an excluded target is dropped from the relation graph
+     * entirely, the same as it is for has_many/many_many, rather than still being captured as a
+     * reference that (for a genuinely per-environment target, the reason it was excluded in the
+     * first place) can only ever mismatch on import.
      *
      * @return array<string, string> relationName => target class (DataObject::class for
      *     polymorphic relations, resolved per-row at read time)
@@ -98,6 +106,10 @@ class RelationSchema
             }
 
             if (static::isTreePositionRelation($class, $name)) {
+                continue;
+            }
+
+            if (static::isExcludedClass($targetClass)) {
                 continue;
             }
 
