@@ -3,7 +3,6 @@
 namespace MadeCurious\PagePacker\Serialization;
 
 use SilverStripe\Assets\File;
-use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Config\Configurable;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\DataObjectSchema;
@@ -60,6 +59,21 @@ class RelationSchema
     ];
 
     /**
+     * Per-class has_one relation names that represent the record's position in some structure
+     * managed entirely outside this module (e.g. a SiteTree page's own $has_one['Parent'] — its
+     * position in the CMS page tree, handled by the tree UI itself) rather than ordinary owned/
+     * referenced content. Excluded from {@see hasOneRelations()} the same way an excluded target
+     * class is, but keyed by relation name against a specific class rather than by target class,
+     * since e.g. 'Parent' is a perfectly ordinary content relation on plenty of other models.
+     *
+     * Empty by default — this module's own SiteTree integration populates the SiteTree entry via
+     * its own config (see that integration's docs), core has no opinion about SiteTree at all.
+     *
+     * @var array<string, string|string[]> class => relation name(s) to treat as structural
+     */
+    private static $structural_has_one_relations = [];
+
+    /**
      * Plain $db fields declared on $class, own + inherited
      *
      * @return array<string, string> fieldName => field spec
@@ -105,7 +119,7 @@ class RelationSchema
                 continue;
             }
 
-            if (static::isTreePositionRelation($class, $name)) {
+            if (static::isStructuralRelation($class, $name)) {
                 continue;
             }
 
@@ -119,9 +133,27 @@ class RelationSchema
         return $relations;
     }
 
-    private static function isTreePositionRelation(string $class, string $relationName): bool
+    /**
+     * Whether $relationName on $class is managed entirely outside this module's object graph —
+     * e.g. SiteTree's own $has_one['Parent'], which represents a page's position in the CMS page
+     * tree (handled by the tree UI itself, not ordinary content) rather than owned/referenced
+     * content. Empty by default; a project or integration registers entries here via
+     * $structural_has_one_relations when it has a class with a has_one like this — see that
+     * config's own doc comment.
+     */
+    private static function isStructuralRelation(string $class, string $relationName): bool
     {
-        return $relationName === 'Parent' && is_a($class, SiteTree::class, true);
+        foreach ((array) static::config()->get('structural_has_one_relations') as $configuredClass => $names) {
+            if (!class_exists($configuredClass) || !is_a($class, $configuredClass, true)) {
+                continue;
+            }
+
+            if (in_array($relationName, (array) $names, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

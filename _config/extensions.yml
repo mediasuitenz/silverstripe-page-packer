@@ -40,6 +40,13 @@ SilverStripe\CMS\Model\SiteTree:
     - MadeCurious\PagePacker\Extensions\RecordLockExtension.sitetree
     - MadeCurious\PagePacker\Extensions\PackableExtension.sitetree
 
+# SiteTree's own $has_one['Parent'] represents a page's position in the CMS page tree (handled by
+# the tree UI itself), not ordinary owned/referenced content — see RelationSchema's own doc
+# comment on this config for why it's expressed this way rather than a hardcoded class check.
+MadeCurious\PagePacker\Serialization\RelationSchema:
+  structural_has_one_relations:
+    SilverStripe\CMS\Model\SiteTree: Parent
+
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
     - MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension

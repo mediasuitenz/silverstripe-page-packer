@@ -2,10 +2,10 @@
 
 namespace MadeCurious\PagePacker\Model;
 
+use MadeCurious\PagePacker\Extensions\PackableExtension;
 use MadeCurious\PagePacker\Security\ImportExportPermissions;
 use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
 use SilverStripe\Assets\File;
-use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\Controller;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\Security\Member;
@@ -118,13 +118,27 @@ class ExportRequest extends DataObject
         return $this->canView($member);
     }
 
+    /**
+     * Resolved from the record's own {@see PackableExtension} — whichever {@see PackingPolicy}
+     * variant it was configured with (the default, or e.g. SiteTree's) is what actually decides
+     * this, so this class has no need to (and, for a clean core/SiteTree-integration split,
+     * mustn't) re-derive that decision itself by checking the record's class directly. Falls back
+     * to the default policy's own code if the class no longer has PackableExtension applied at
+     * all — e.g. a still-installed but no-longer-packable class, for an old ExportRequest row.
+     */
     private function permissionCode(): string
     {
         $class = $this->RecordClass;
 
-        return ($class && is_a($class, SiteTree::class, true))
-            ? ImportExportPermissions::SITETREE_IMPORT_EXPORT
-            : ImportExportPermissions::RECORD_IMPORT_EXPORT;
+        if ($class && class_exists($class) && is_a($class, DataObject::class, true)) {
+            $extension = DataObject::singleton($class)->getExtensionInstance(PackableExtension::class);
+
+            if ($extension) {
+                return $extension->policy()->permissionCode();
+            }
+        }
+
+        return ImportExportPermissions::RECORD_IMPORT_EXPORT;
     }
 
     /**

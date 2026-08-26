@@ -101,4 +101,43 @@ class RelationSchemaTest extends SapphireTest
 
         $this->assertArrayNotHasKey('ThingID', $fields);
     }
+
+    /**
+     * Covers structural_has_one_relations — the config-driven replacement for what used to be a
+     * hardcoded "SiteTree's own Parent is structural" check baked directly into RelationSchema.
+     * Core itself has no opinion about SiteTree (or any other class) at all; this module's own
+     * SiteTree integration is what populates an entry for it, exactly like a project would for
+     * its own structural has_one, if it has one — see this config's own doc comment.
+     */
+    public function testHasOneRelationIsIncludedByDefaultEvenWithAStructuralSoundingName(): void
+    {
+        $relations = RelationSchema::hasOneRelations(TestHasOneOwner::class);
+
+        $this->assertArrayHasKey('Thing', $relations);
+    }
+
+    public function testHasOneRelationIsDroppedWhenConfiguredAsStructuralForThatClass(): void
+    {
+        RelationSchema::config()->set('structural_has_one_relations', [
+            TestHasOneOwner::class => 'Thing',
+        ]);
+
+        $relations = RelationSchema::hasOneRelations(TestHasOneOwner::class);
+
+        $this->assertArrayNotHasKey('Thing', $relations);
+    }
+
+    public function testStructuralConfigIsScopedToItsOwnClassNotEveryClassWithThatRelationName(): void
+    {
+        // Regression guard: configuring an unrelated class as having a structural 'Thing'
+        // relation must not accidentally suppress TestHasOneOwner's own, genuinely-content
+        // 'Thing' relation — the config is keyed by class, not by relation name alone.
+        RelationSchema::config()->set('structural_has_one_relations', [
+            TestThroughOwner::class => 'Thing',
+        ]);
+
+        $relations = RelationSchema::hasOneRelations(TestHasOneOwner::class);
+
+        $this->assertArrayHasKey('Thing', $relations);
+    }
 }

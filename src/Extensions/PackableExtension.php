@@ -44,6 +44,18 @@ class PackableExtension extends Extension
         $this->policy = $policy ?? Injector::inst()->get(PackingPolicy::class);
     }
 
+    /**
+     * Public so code that only has a class name — not a live extension instance — can still
+     * resolve the right policy for it via {@see \SilverStripe\ORM\DataObject::singleton()}'s
+     * extension instances, rather than re-deriving "is this SiteTree or not" itself. See
+     * {@see \MadeCurious\PagePacker\Model\ExportRequest::permissionCode()} for the motivating
+     * case: a stored history row that's outlived any live context for the record it's about.
+     */
+    public function policy(): PackingPolicy
+    {
+        return $this->policy;
+    }
+
     public function updateCMSFields(FieldList $fields): void
     {
         // hide the raw auto-scaffolded relation field — an editor sees this history through a
