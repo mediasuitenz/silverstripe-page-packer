@@ -51,6 +51,10 @@ SilverStripe\CMS\Controllers\CMSMain:
 # travelling between environments in an export zip. Merges with
 # madecurious/silverstripe-record-packer's own default (just its own ExportRequest) rather than
 # replacing it — SilverStripe config arrays combine across sources.
+#
+# LinkTracking is SiteTree's own link-tracking many_many (from silverstripe/cms's
+# SiteTreeLinkTracking extension) — core has zero opinion about it, same reasoning as
+# structural_has_one_relations above; this is the one place that knows SiteTree exists at all.
 MadeCurious\RecordPacker\Serialization\RelationSchema:
   structural_has_one_relations:
     SilverStripe\CMS\Model\SiteTree: Parent
@@ -58,3 +62,5 @@ MadeCurious\RecordPacker\Serialization\RelationSchema:
     - SilverStripe\UserForms\Model\Submission\SubmittedForm
     - SilverStripe\UserForms\Model\Submission\SubmittedFormField
     - SilverStripe\UserForms\Model\Submission\SubmittedFileField
+  excluded_relation_names:
+    - LinkTracking
