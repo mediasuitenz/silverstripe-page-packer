@@ -84,4 +84,22 @@ class SiteTreePackingPolicy implements PackingPolicy
         // CMSPageContentExportController.
         return false;
     }
+
+    public function displayTitle(DataObject $record): ?string
+    {
+        // SiteTree's Title works the same way any other packable record's does — no
+        // page-tree-specific behaviour needed here.
+        return $record->hasField('Title') ? (string) $record->Title : null;
+    }
+
+    public function setDisplayTitle(DataObject $record, string $value): bool
+    {
+        if (!$record->hasField('Title')) {
+            return false;
+        }
+
+        $record->Title = $value;
+
+        return true;
+    }
 }
