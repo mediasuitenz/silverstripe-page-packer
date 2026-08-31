@@ -13,7 +13,7 @@ as a new draft, entirely through the CMS UI.
 - `silverstripe/cms` `^5.4`
 - `silverstripe/versioned` `^2.4`
 - `symbiote/silverstripe-queuedjobs` `^5.3`
-- `madecurious/silverstripe-record-pacjer` `^0.1.0`
+- `madecurious/silverstripe-record-packer` `^0.1.0`
 
 Optional, auto-detected if installed (`composer.json` `suggest`):
 
