@@ -14,6 +14,7 @@ This branch (`cms5`) targets SilverStripe CMS 5. For CMS 6, see the `cms6` branc
 * silverstripe/cms ^5.4
 * silverstripe/versioned ^2.4
 * symbiote/silverstripe-queuedjobs ^5.3
+* madecurious/silverstripe-record-packer ^0.1.0
 
 Optional, detected automatically if installed:
 
@@ -48,55 +49,7 @@ anything. Clicking **Create** then runs the import as a background job, and you 
 Both directions require the `SITETREE_IMPORT_EXPORT` permission, manageable per group under
 Security in the CMS.
 
-## Using it on your own DataObject
-
-`SiteTree` gets its "Export" button and locking via the exact same two extension classes any
-other project `DataObject` uses — `PackableExtension` and `RecordLockExtension` — just configured
-via Injector with a SiteTree-specific policy object instead of the default one (see the developer
-guide). Apply the same two extensions, with no extra configuration, to any other `DataObject` —
-typically one edited through an ordinary GridField rather than the page tree:
-
-```yaml
-App\Model\Catalogue: # any DataObject, not SiteTree
-  extensions:
-    - MadeCurious\PagePacker\Extensions\RecordLockExtension
-    - MadeCurious\PagePacker\Extensions\PackableExtension
-```
-
-This gets you the same "Export" button + export history the page tree gets, wherever the record's
-`getCMSFields()`/edit form is rendered — including inside a GridField's detail form, which is
-wired up globally already (see the developer guide for why that needed its own extend point).
-
-Two further, opt-in GridField components round out the GridField-specific UI — add either or
-both to a `GridFieldConfig`:
-
-```php
-use MadeCurious\PagePacker\Forms\GridField\GridFieldRecordExportAction;
-use MadeCurious\PagePacker\Forms\GridField\GridFieldRecordImportButton;
-
-GridFieldConfig_RecordEditor::create()
-    // "Import" toolbar button — the GridField equivalent of the page tree's "Add new page"
-    // import option, creating a new record in this GridField from an uploaded file.
-    ->addComponent(new GridFieldRecordImportButton())
-    // Optional one-click "Export" action per row, alongside GridFieldDeleteAction etc. — an
-    // alternative to opening a record's detail view just to click its own Export button.
-    ->addComponent(new GridFieldRecordExportAction());
-```
-
-This path uses its own permission, `RECORD_IMPORT_EXPORT`, kept separate from
-`SITETREE_IMPORT_EXPORT` so a group can be granted one without the other. See the
-[developer guide](docs/developer-guide.md) for the full picture (what's shared with the page-tree
-flow, what's independent, and why).
-
-## Configuration
-
-```yaml
-MadeCurious\PagePacker\Serialization\RecordSerializer:
-  # 'fail' (default): abort with a clear error the moment an unsupported relation shape or a
-  # class/field missing on the target site is encountered. 'best_effort': skip what doesn't
-  # match and record a warning instead.
-  mismatch_behaviour: best_effort
-```
+For further information, review the documentation in the [core module](https://github.com/mediasuitenz/silverstripe-record-packer)
 
 ## Gotchas
 

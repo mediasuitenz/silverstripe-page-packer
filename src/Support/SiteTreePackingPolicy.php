@@ -13,18 +13,7 @@ use SilverStripe\Forms\LiteralField;
 use SilverStripe\ORM\DataObject;
 
 /**
- * The SiteTree/CMSMain-specific {@see PackingPolicy} — hosts the Export modal's form on
- * whichever CMSMain-derived controller is currently rendering the page (via
- * {@see \MadeCurious\PagePacker\Extensions\CMSMainExportActionExtension}'s own
- * `ExportModalForm`/`doExport`, using the page's `PageID`) rather than the generic
- * {@see \MadeCurious\RecordPacker\Controllers\RecordPackerController}, and places the trigger
- * inside the `ActionMenus.MoreOptions` popup next to Save/Publish/Unpublish/Rollback rather than
- * pushed flat onto the action bar.
- *
- * Wired up as the `PackingPolicy.sitetree` Injector service variant in this module's
- * `_config/extensions.yml`, which is what `SiteTree` requests for its `PackableExtension`/
- * `RecordLockExtension` — see that file, and {@see PackingPolicy}'s own doc comment for why a
- * named Injector variant (rather than a subclass of either extension) is how this is wired up.
+ * The SiteTree/CMSMain-specific {@see PackingPolicy}
  */
 class SiteTreePackingPolicy implements PackingPolicy
 {
@@ -47,7 +36,7 @@ class SiteTreePackingPolicy implements PackingPolicy
     {
         return (string) _t(
             self::class . '.LOCKED_WARNING',
-            'This page is currently being exported/imported by PagePacker.'
+            'This page is currently being exported/imported by Page Packer.'
             . ' Please try again in a minute or so.'
         );
     }
@@ -80,15 +69,12 @@ class SiteTreePackingPolicy implements PackingPolicy
 
     public function showsHistoryFieldInline(): bool
     {
-        // A page's history already lives on its own dedicated "Content Export" tab — see
-        // CMSPageContentExportController.
+        // A page's history already lives on its own dedicated "Content Export" tab
         return false;
     }
 
     public function displayTitle(DataObject $record): ?string
     {
-        // SiteTree's Title works the same way any other packable record's does — no
-        // page-tree-specific behaviour needed here.
         return $record->hasField('Title') ? (string) $record->Title : null;
     }
 

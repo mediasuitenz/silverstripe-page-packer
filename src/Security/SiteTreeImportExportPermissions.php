@@ -5,11 +5,7 @@ namespace MadeCurious\PagePacker\Security;
 use SilverStripe\Security\PermissionProvider;
 
 /**
- * Gates the page-tree export/import UI (CMSMainExportActionExtension,
- * CMSMainAddFormImportExtension, CMSPageContentExportController) — kept separate from
- * madecurious/silverstripe-record-packer's own ImportExportPermissions::RECORD_IMPORT_EXPORT so
- * a group can be granted export/import on pages without also being granted it on generic
- * records (or vice versa).
+ * Separate permission site for page import/export
  */
 class SiteTreeImportExportPermissions implements PermissionProvider
 {

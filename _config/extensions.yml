@@ -1,22 +1,11 @@
 ---
 Name: page-packer-extensions
 ---
-# The SiteTree/CMSMain-specific PackingPolicy variant (see madecurious/silverstripe-record-packer's
-# own PackingPolicy interface doc comment for why a named Injector variant, rather than a subclass
-# of PackableExtension/RecordLockExtension, is how this is wired up — the same pattern
-# silverstripe/versioned's own Versioned extension uses for its Stage/StagedVersioned modes).
+# The SiteTree/CMSMain-specific PackingPolicy variant
 SilverStripe\Core\Injector\Injector:
-  # Named variant of the CORE PackingPolicy interface/service — same pattern
-  # madecurious/silverstripe-record-packer's own default variant uses, just registered from this
-  # module instead, so core has no need to know SiteTree support exists at all.
   MadeCurious\RecordPacker\Support\PackingPolicy.sitetree:
     class: MadeCurious\PagePacker\Support\SiteTreePackingPolicy
 
-  # SiteTree gets the very same two extension classes as any other packable DataObject, just
-  # constructed with the SiteTree policy variant instead of the default. Named as their own
-  # service variants (rather than passing the policy inline on SiteTree's own $extensions list)
-  # so each variant gets its own Injector singleton cache entry — see PackingPolicy's doc comment
-  # for why that distinction matters.
   MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree:
     class: MadeCurious\RecordPacker\Extensions\PackableExtension
     constructor:
@@ -28,11 +17,6 @@ SilverStripe\Core\Injector\Injector:
 
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    # No leading %$: Extensible's own extension-class-existence check
-    # (Extensible::get_extra_config_sources()) parses this raw string with
-    # ClassInfo::parse_class_spec() BEFORE any %$ stripping, so a %$-prefixed whole entry gets
-    # mangled by the tokenizer and fails that check. A bare `ClassName.variant` entry resolves
-    # through Injector identically (see getExtensionInstances()) without tripping it.
     - MadeCurious\RecordPacker\Extensions\RecordLockExtension.sitetree
     - MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree
 
@@ -42,19 +26,10 @@ SilverStripe\CMS\Controllers\CMSMain:
     - MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
     - MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
 
-# SiteTree's own $has_one['Parent'] represents a page's position in the CMS page tree (handled by
-# the tree UI itself), not ordinary owned/referenced content — see RelationSchema's own doc
-# comment on this config for why it's expressed this way rather than a hardcoded class check.
-#
-# UserForms' visitor submission data (SubmittedForm/SubmittedFormField/SubmittedFileField) is
-# real, live, per-environment visitor data, not form-definition content — it has no business
-# travelling between environments in an export zip. Merges with
-# madecurious/silverstripe-record-packer's own default (just its own ExportRequest) rather than
-# replacing it — SilverStripe config arrays combine across sources.
-#
-# LinkTracking is SiteTree's own link-tracking many_many (from silverstripe/cms's
-# SiteTreeLinkTracking extension) — core has zero opinion about it, same reasoning as
-# structural_has_one_relations above; this is the one place that knows SiteTree exists at all.
+# SiteTree's Parent references its position, so we don't want to migrate
+# that across - we determine its position on import
+# Pre-guard against UserForms submissions - potentially pull this out
+# into its own module later
 MadeCurious\RecordPacker\Serialization\RelationSchema:
   structural_has_one_relations:
     SilverStripe\CMS\Model\SiteTree: Parent

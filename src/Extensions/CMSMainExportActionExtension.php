@@ -73,9 +73,7 @@ class CMSMainExportActionExtension extends Extension
 
         ExportQueuer::queue($record, SiteTreeExportJob::class, $includeAssets, $description);
 
-        // Redirects straight to the page's own Content Export tab, where the newly-queued
-        // request appears at the top of its history (with a Status link once its job admin
-        // record exists) — that refocus is confirmation enough on its own; no toast needed.
+        // Redirects straight to the page's own Content Export tab
         $link = CMSPageContentExportController::singleton()->Link('show/' . $record->ID);
 
         return $this->owner->redirect($link);

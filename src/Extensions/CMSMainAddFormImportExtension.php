@@ -89,7 +89,6 @@ class CMSMainAddFormImportExtension extends Extension
             return $response->setStatusCode(422)->setBody(json_encode(['error' => $e->getMessage()]));
         }
 
-        // meta is absent for a file exported before this was added — fall back to the root
         $meta = $manifest['meta'] ?? null;
 
         if (!$meta) {
