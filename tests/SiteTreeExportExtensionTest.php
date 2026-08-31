@@ -2,7 +2,7 @@
 
 namespace MadeCurious\PagePacker\Tests;
 
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
 use SilverStripe\CMS\Controllers\CMSMain;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\HTTPRequest;
@@ -47,7 +47,7 @@ class SiteTreeExportExtensionTest extends SapphireTest
      */
     public function testExportTriggerIsInMoreOptionsNotTopLevel(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $page = SiteTree::create(['Title' => 'A page']);
         $page->write();
@@ -65,14 +65,14 @@ class SiteTreeExportExtensionTest extends SapphireTest
         }
 
         $this->assertNull(
-            $actions->fieldByName('SiteTreeExportModalTrigger'),
+            $actions->fieldByName('PackerExportModalTrigger'),
             'The export trigger must not sit in the top-level action bar.'
         );
 
         $moreOptions = $actions->fieldByName('ActionMenus.MoreOptions');
         $this->assertNotNull($moreOptions, 'Expected the ActionMenus.MoreOptions tab to exist.');
         $this->assertNotNull(
-            $moreOptions->fieldByName('SiteTreeExportModalTrigger'),
+            $moreOptions->fieldByName('PackerExportModalTrigger'),
             'The export trigger must be inside the More options popup.'
         );
     }

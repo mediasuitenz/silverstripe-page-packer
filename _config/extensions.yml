@@ -1,10 +1,24 @@
 ---
 Name: page-packer-extensions
 ---
+# The SiteTree/CMSMain-specific PackingPolicy variant
+SilverStripe\Core\Injector\Injector:
+  MadeCurious\RecordPacker\Support\PackingPolicy.sitetree:
+    class: MadeCurious\PagePacker\Support\SiteTreePackingPolicy
+
+  MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree:
+    class: MadeCurious\RecordPacker\Extensions\PackableExtension
+    constructor:
+      - '%$MadeCurious\RecordPacker\Support\PackingPolicy.sitetree'
+  MadeCurious\RecordPacker\Extensions\RecordLockExtension.sitetree:
+    class: MadeCurious\RecordPacker\Extensions\RecordLockExtension
+    constructor:
+      - '%$MadeCurious\RecordPacker\Support\PackingPolicy.sitetree'
+
 SilverStripe\CMS\Model\SiteTree:
   extensions:
-    - MadeCurious\PagePacker\Extensions\SiteTreeLockExtension
-    - MadeCurious\PagePacker\Extensions\SiteTreeExportExtension
+    - MadeCurious\RecordPacker\Extensions\RecordLockExtension.sitetree
+    - MadeCurious\RecordPacker\Extensions\PackableExtension.sitetree
 
 SilverStripe\CMS\Controllers\CMSMain:
   extensions:
@@ -12,8 +26,16 @@ SilverStripe\CMS\Controllers\CMSMain:
     - MadeCurious\PagePacker\Extensions\CMSMainAddFormImportExtension
     - MadeCurious\PagePacker\Extensions\CMSMainContentExportTabExtension
 
-# Mismatch handling for an unsupported relation/class/property
-# — 'fail' aborts an export/import with a clear error
-# - 'best_effort' skips what doesn't match and records a warning instead.
-MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
-  mismatch_behaviour: fail
+# SiteTree's Parent references its position, so we don't want to migrate
+# that across - we determine its position on import
+# Pre-guard against UserForms submissions - potentially pull this out
+# into its own module later
+MadeCurious\RecordPacker\Serialization\RelationSchema:
+  structural_has_one_relations:
+    SilverStripe\CMS\Model\SiteTree: Parent
+  excluded_relation_classes:
+    - SilverStripe\UserForms\Model\Submission\SubmittedForm
+    - SilverStripe\UserForms\Model\Submission\SubmittedFormField
+    - SilverStripe\UserForms\Model\Submission\SubmittedFileField
+  excluded_relation_names:
+    - LinkTracking

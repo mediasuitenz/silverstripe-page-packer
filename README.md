@@ -14,6 +14,7 @@ This branch (`cms5`) targets SilverStripe CMS 5. For CMS 6, see the `cms6` branc
 * silverstripe/cms ^5.4
 * silverstripe/versioned ^2.4
 * symbiote/silverstripe-queuedjobs ^5.3
+* madecurious/silverstripe-record-packer ^0.1.0
 
 Optional, detected automatically if installed:
 
@@ -48,15 +49,7 @@ anything. Clicking **Create** then runs the import as a background job, and you 
 Both directions require the `SITETREE_IMPORT_EXPORT` permission, manageable per group under
 Security in the CMS.
 
-## Configuration
-
-```yaml
-MadeCurious\PagePacker\Serialization\SiteTreeSerializer:
-  # 'fail' (default): abort with a clear error the moment an unsupported relation shape or a
-  # class/field missing on the target site is encountered. 'best_effort': skip what doesn't
-  # match and record a warning instead.
-  mismatch_behaviour: best_effort
-```
+For further information, review the documentation in the [core module](https://github.com/mediasuitenz/silverstripe-record-packer)
 
 ## Gotchas
 

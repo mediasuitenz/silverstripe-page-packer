@@ -4,7 +4,10 @@ namespace MadeCurious\PagePacker\Security;
 
 use SilverStripe\Security\PermissionProvider;
 
-class ImportExportPermissions implements PermissionProvider
+/**
+ * Separate permission site for page import/export
+ */
+class SiteTreeImportExportPermissions implements PermissionProvider
 {
     const SITETREE_IMPORT_EXPORT = 'SITETREE_IMPORT_EXPORT';
 

@@ -5,13 +5,23 @@ namespace MadeCurious\PagePacker\Tests;
 use DNADesign\Elemental\Extensions\ElementalPageExtension;
 use DNADesign\Elemental\Models\ElementalArea;
 use DNADesign\Elemental\Models\ElementContent;
-use MadeCurious\PagePacker\Model\ExportRequest;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
-use MadeCurious\PagePacker\Serialization\ContentTimestampWalker;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
+use MadeCurious\RecordPacker\Model\ExportRequest;
+use MadeCurious\RecordPacker\Serialization\ContentTimestampWalker;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Dev\SapphireTest;
 use SilverStripe\ORM\FieldType\DBDatetime;
 
+/**
+ * Covers the page-tree-specific slice of ExportRequest's behaviour: permission gating on
+ * SITETREE_IMPORT_EXPORT (kept independently grantable from
+ * madecurious/silverstripe-record-packer's own RECORD_IMPORT_EXPORT — see
+ * SiteTreeImportExportPermissions' own doc comment), and staleness against a page with a nested
+ * Elemental block. Everything else (the shared isStale()/history mechanics against a versioned or
+ * unversioned record, the Status/QueuedJobDescriptor link) is covered generically by
+ * madecurious/silverstripe-record-packer's own ExportRequestTest — this one deliberately doesn't
+ * repeat it.
+ */
 class ExportRequestTest extends SapphireTest
 {
     protected $usesDatabase = true;
@@ -21,68 +31,6 @@ class ExportRequestTest extends SapphireTest
         DBDatetime::clear_mock_now();
 
         parent::tearDown();
-    }
-
-    public function testNeverPublishedPageIsNeverStale(): void
-    {
-        $page = SiteTree::create(['Title' => 'Draft only']);
-        $page->write();
-
-        // Origin=Export normally always has a real SourceContentTimestamp, but even an
-        // (unrealistic) Export-origin entry against a since-unpublished page must not be
-        // treated as stale — there's no newer live content to be behind.
-        $request = ExportRequest::create([
-            'PageID' => $page->ID,
-            'Origin' => ExportRequest::ORIGIN_EXPORT,
-            'SourceContentTimestamp' => '2020-01-01 00:00:00',
-        ]);
-        $request->write();
-
-        $this->assertFalse($request->isStale());
-    }
-
-    public function testImportOriginEntryIsStaleOnceThePageIsPublished(): void
-    {
-        $page = SiteTree::create(['Title' => 'Imported page']);
-        $page->write();
-
-        $request = ExportRequest::create([
-            'PageID' => $page->ID,
-            'Origin' => ExportRequest::ORIGIN_IMPORT,
-            // Deliberately left at its default ('') — see ExportRequest::isStale()'s doc comment.
-        ]);
-        $request->write();
-
-        $this->assertFalse($request->isStale(), 'Not stale before the page has ever been published.');
-
-        $page->publishRecursive();
-
-        $this->assertTrue($request->isStale(), 'Stale as soon as the page is published at all.');
-    }
-
-    public function testExportOriginEntryIsStaleOnlyAfterANewerPublish(): void
-    {
-        DBDatetime::set_mock_now('2024-01-01 12:00:00');
-
-        $page = SiteTree::create(['Title' => 'Published page']);
-        $page->write();
-        $page->publishRecursive();
-
-        $request = ExportRequest::create([
-            'PageID' => $page->ID,
-            'Origin' => ExportRequest::ORIGIN_EXPORT,
-            'SourceContentTimestamp' => $page->LastEdited,
-        ]);
-        $request->write();
-
-        $this->assertFalse($request->isStale(), 'Not stale immediately after capturing the current live content.');
-
-        DBDatetime::set_mock_now('2024-01-01 12:05:00');
-        $page->Title = 'Published page, edited';
-        $page->write();
-        $page->publishRecursive();
-
-        $this->assertTrue($request->isStale(), 'Stale after a newer publish of the page itself.');
     }
 
     /**
@@ -113,7 +61,8 @@ class ExportRequestTest extends SapphireTest
         $page->publishRecursive();
 
         $request = ExportRequest::create([
-            'PageID' => $page->ID,
+            'RecordID' => $page->ID,
+            'RecordClass' => get_class($page),
             'Origin' => ExportRequest::ORIGIN_EXPORT,
             'SourceContentTimestamp' => (new ContentTimestampWalker())->latestTimestamp($page),
         ]);
@@ -134,11 +83,15 @@ class ExportRequestTest extends SapphireTest
         );
     }
 
-    public function testDeletePermissionIsGatedByTheModulesPermission(): void
+    public function testDeletePermissionIsGatedByTheSiteTreePermissionForAPage(): void
     {
         $page = SiteTree::create(['Title' => 'Owner of an export']);
         $page->write();
-        $request = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $request = ExportRequest::create([
+            'RecordID' => $page->ID,
+            'RecordClass' => SiteTree::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+        ]);
         $request->write();
 
         $this->logOut();
@@ -147,7 +100,7 @@ class ExportRequestTest extends SapphireTest
             'A visitor with no permission at all must not be able to delete an export.'
         );
 
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
         $this->assertTrue(
             (bool) $request->canDelete(),
             'A member with the module\'s permission must be able to delete an export — this is'
@@ -158,42 +111,31 @@ class ExportRequestTest extends SapphireTest
 
     public function testDeletingAnExportRequestRemovesItFromThePagesHistory(): void
     {
-        $this->logInWithPermission(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        $this->logInWithPermission(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
 
         $page = SiteTree::create(['Title' => 'Owner of two exports']);
         $page->write();
 
-        $keep = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $keep = ExportRequest::create([
+            'RecordID' => $page->ID,
+            'RecordClass' => SiteTree::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+        ]);
         $keep->write();
-        $delete = ExportRequest::create(['PageID' => $page->ID, 'Origin' => ExportRequest::ORIGIN_EXPORT]);
+        $delete = ExportRequest::create([
+            'RecordID' => $page->ID,
+            'RecordClass' => SiteTree::class,
+            'Origin' => ExportRequest::ORIGIN_EXPORT,
+        ]);
         $delete->write();
 
         $this->assertSame(2, $page->ExportRequests()->count());
 
-        // Mirrors exactly what GridFieldDeleteAction::handleAction() does server-side for the
-        // 'deleterecord' action: check canDelete(), then delete() outright (not a mere
-        // remove-from-relation) — see the has_many wiring on SiteTreeExportExtension.
         $this->assertTrue((bool) $delete->canDelete());
         $delete->delete();
 
         $remaining = $page->ExportRequests();
         $this->assertSame(1, $remaining->count());
         $this->assertSame($keep->ID, $remaining->first()->ID);
-    }
-
-    public function testDescriptionIsPersistedAndShownInSummary(): void
-    {
-        $page = SiteTree::create(['Title' => 'Described export']);
-        $page->write();
-
-        $request = ExportRequest::create([
-            'PageID' => $page->ID,
-            'Origin' => ExportRequest::ORIGIN_EXPORT,
-            'Description' => 'Before the homepage redesign',
-        ]);
-        $request->write();
-
-        $reloaded = ExportRequest::get()->byID($request->ID);
-        $this->assertSame('Before the homepage redesign', $reloaded->Description);
     }
 }

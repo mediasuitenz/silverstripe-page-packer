@@ -3,7 +3,7 @@
 namespace MadeCurious\PagePacker\Extensions;
 
 use MadeCurious\PagePacker\Controllers\CMSPageContentExportController;
-use MadeCurious\PagePacker\Security\ImportExportPermissions;
+use MadeCurious\PagePacker\Security\SiteTreeImportExportPermissions;
 use SilverStripe\Control\Controller;
 use SilverStripe\Core\Extension;
 use SilverStripe\Security\Permission;
@@ -26,6 +26,6 @@ class CMSMainContentExportTabExtension extends Extension
 
     public function getHasContentExport(): bool
     {
-        return Permission::check(ImportExportPermissions::SITETREE_IMPORT_EXPORT);
+        return Permission::check(SiteTreeImportExportPermissions::SITETREE_IMPORT_EXPORT);
     }
 }

@@ -3,9 +3,9 @@
 namespace MadeCurious\PagePacker\Tests;
 
 use MadeCurious\PagePacker\Jobs\SiteTreeImportJob;
-use MadeCurious\PagePacker\Model\ExportRequest;
-use MadeCurious\PagePacker\Serialization\AssetBundler;
-use MadeCurious\PagePacker\Serialization\SiteTreeSerializer;
+use MadeCurious\RecordPacker\Model\ExportRequest;
+use MadeCurious\RecordPacker\Serialization\AssetBundler;
+use MadeCurious\RecordPacker\Serialization\RecordSerializer;
 use RuntimeException;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Core\Injector\Injector;
@@ -13,7 +13,7 @@ use SilverStripe\Dev\SapphireTest;
 
 /**
  * Covers SiteTreeImportJob::doImport()'s own guard on the ROOT node's class specifically — a
- * separate, stricter check from SiteTreeSerializer's general mismatch handling (see
+ * separate, stricter check from RecordSerializer's general mismatch handling (see
  * MismatchHandlingTest for that). There's no reasonable "best effort" partial import when the
  * root class itself can't be resolved (there's no page left to apply anything else to), so this
  * is fatal unconditionally, even under MISMATCH_BEST_EFFORT — confirmed explicitly below rather
@@ -55,7 +55,7 @@ class SiteTreeImportJobTest extends SapphireTest
 
         // Deliberately BEST_EFFORT, not FAIL — proving this is fatal either way, not merely the
         // default behaviour.
-        SiteTreeSerializer::config()->set('mismatch_behaviour', SiteTreeSerializer::MISMATCH_BEST_EFFORT);
+        RecordSerializer::config()->set('mismatch_behaviour', RecordSerializer::MISMATCH_BEST_EFFORT);
         $job = new SiteTreeImportJob($stub, $uploadedFile);
 
         $caught = null;
@@ -76,7 +76,8 @@ class SiteTreeImportJobTest extends SapphireTest
         $this->assertStringContainsString('Import failed:', $reloadedStub->Title);
 
         $failedRequest = ExportRequest::get()->filter([
-            'PageID' => $stub->ID,
+            'RecordID' => $stub->ID,
+            'RecordClass' => SiteTree::class,
             'Origin' => ExportRequest::ORIGIN_IMPORT,
             'Status' => ExportRequest::STATUS_FAILED,
         ])->first();

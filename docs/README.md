@@ -8,14 +8,11 @@ production) entirely through the CMS UI, with no developer or CLI access require
 
 This `docs/` folder covers two audiences:
 
-- **[User guide](user-guide.md)** — for CMS editors/authors who want to export a page or
-  import one, understand the "stale" badge, and know what permission they need.
 - **[Developer guide](developer-guide.md)** — for developers installing, configuring,
   extending, or maintaining this module: architecture, extension points, data model,
   background jobs, and how to run the test suite.
-
-Both guides have placeholders marked `_[screenshot: ...]_` where screenshots can be
-dropped in later.
+- **[User guide](user-guide.md)** — for CMS editors/authors who want to export a page or
+  import one, understand the "stale" badge, and know what permission they need.
 
 For a quick summary and the installation one-liner, see the [module README](../README.md)
 in the repository root.
